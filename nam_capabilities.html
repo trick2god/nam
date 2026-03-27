@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAM — Network Automation Machine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #05080f;
+    --surface: #0c1220;
+    --surface2: #111827;
+    --border: rgba(255,255,255,0.07);
+    --accent: #00e5ff;
+    --accent2: #ff6200;
+    --accent3: #7c3aed;
+    --text: #e8edf5;
+    --muted: #64748b;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999; opacity: .4;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(5,8,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 22px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .nav-logo span { color: var(--accent2); }
+  .nav-links { display: flex; gap: 32px; list-style: none; }
+  .nav-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); text-decoration: none;
+    transition: color .2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; padding: 5px 14px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 20px; letter-spacing: .1em;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 120px 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 30%, transparent 100%);
+  }
+
+  .hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+  }
+  .hero-orb-1 {
+    width: 600px; height: 600px;
+    top: -200px; left: -100px;
+    background: radial-gradient(circle, rgba(0,229,255,.12), transparent 70%);
+    animation: drift1 8s ease-in-out infinite alternate;
+  }
+  .hero-orb-2 {
+    width: 500px; height: 500px;
+    bottom: -150px; right: -80px;
+    background: radial-gradient(circle, rgba(255,98,0,.1), transparent 70%);
+    animation: drift2 10s ease-in-out infinite alternate;
+  }
+  .hero-orb-3 {
+    width: 300px; height: 300px;
+    top: 30%; left: 60%;
+    background: radial-gradient(circle, rgba(124,58,237,.08), transparent 70%);
+  }
+
+  @keyframes drift1 { to { transform: translate(40px, 30px); } }
+  @keyframes drift2 { to { transform: translate(-30px, -40px); } }
+
+  .hero-eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 24px;
+    display: inline-flex; align-items: center; gap: 10px;
+    opacity: 0; animation: fadeUp .8s .2s forwards;
+  }
+  .hero-eyebrow::before, .hero-eyebrow::after {
+    content: ''; width: 40px; height: 1px; background: var(--accent); opacity: .5;
+  }
+
+  .hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(52px, 8vw, 100px);
+    font-weight: 800;
+    line-height: .95;
+    letter-spacing: -3px;
+    margin-bottom: 12px;
+    opacity: 0; animation: fadeUp .8s .4s forwards;
+  }
+  .hero-title .accent { color: var(--accent); }
+  .hero-title .accent2 { color: var(--accent2); }
+
+  .hero-subtitle-word {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(14px, 2vw, 20px);
+    font-weight: 600; letter-spacing: .3em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 32px;
+    opacity: 0; animation: fadeUp .8s .5s forwards;
+  }
+
+  .hero-desc {
+    max-width: 640px;
+    font-size: 17px; font-weight: 300;
+    color: rgba(232,237,245,0.75);
+    margin-bottom: 48px;
+    opacity: 0; animation: fadeUp .8s .6s forwards;
+  }
+
+  .hero-ctas {
+    display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+    opacity: 0; animation: fadeUp .8s .8s forwards;
+  }
+  .btn-primary {
+    background: var(--accent); color: #000;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 13px; letter-spacing: .05em;
+    padding: 14px 32px; border-radius: 4px;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-primary:hover { background: #fff; transform: translateY(-2px); }
+  .btn-outline {
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif; font-weight: 600;
+    font-size: 13px; letter-spacing: .05em;
+    padding: 14px 32px; border-radius: 4px;
+    text-decoration: none; cursor: pointer;
+    background: transparent;
+    transition: all .2s;
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .stat-item {
+    padding: 32px 40px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 42px; font-weight: 800;
+    color: var(--accent); line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── SECTIONS ── */
+  section { padding: 100px 48px; }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: .25em; text-transform: uppercase;
+    color: var(--accent2); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800; letter-spacing: -1.5px;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .section-desc {
+    font-size: 16px; font-weight: 300;
+    color: rgba(232,237,245,0.65);
+    max-width: 560px;
+    margin-bottom: 60px;
+  }
+
+  /* ── INTEGRATIONS GRID ── */
+  .integrations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .integration-card {
+    background: var(--surface);
+    padding: 32px;
+    transition: background .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .integration-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--card-color, var(--accent));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .3s;
+  }
+  .integration-card:hover { background: var(--surface2); }
+  .integration-card:hover::before { transform: scaleX(1); }
+
+  .int-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px;
+  }
+  .int-icon {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    background: var(--card-bg, rgba(0,229,255,.08));
+    border: 1px solid var(--card-color, rgba(0,229,255,.2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .int-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--text);
+  }
+  .int-type {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--card-color, var(--accent));
+  }
+  .int-desc {
+    font-size: 13.5px; color: rgba(232,237,245,0.65);
+    line-height: 1.6; margin-bottom: 20px;
+  }
+  .int-tags {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: .08em;
+    padding: 4px 10px; border-radius: 3px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── CAPABILITIES BENTO ── */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: auto;
+    gap: 16px;
+  }
+
+  .bento-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 36px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .2s, border-color .2s;
+  }
+  .bento-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255,255,255,.15);
+  }
+
+  .bento-card.span-4 { grid-column: span 4; }
+  .bento-card.span-6 { grid-column: span 6; }
+  .bento-card.span-8 { grid-column: span 8; }
+  .bento-card.span-12 { grid-column: span 12; }
+
+  .bento-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .bento-icon { font-size: 32px; margin-bottom: 16px; }
+
+  .bento-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px; font-weight: 700;
+    margin-bottom: 12px; line-height: 1.2;
+  }
+
+  .bento-desc {
+    font-size: 13.5px;
+    color: rgba(232,237,245,0.6);
+    line-height: 1.65;
+  }
+
+  .bento-accent-line {
+    position: absolute;
+    left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--line-color, var(--accent));
+  }
+
+  /* ── FEATURE HIGHLIGHT ── */
+  .highlight-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .highlight-visual {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    position: relative;
+    overflow: hidden;
+  }
+  .highlight-visual::before {
+    content: '';
+    position: absolute; top: 0; right: 0;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle at top right, rgba(0,229,255,.06), transparent 70%);
+  }
+  .code-line { display: flex; gap: 16px; }
+  .code-line .ln { color: var(--muted); user-select: none; min-width: 20px; }
+  .c-kw { color: #c792ea; }
+  .c-fn { color: #82aaff; }
+  .c-str { color: #c3e88d; }
+  .c-cm { color: #546e7a; }
+  .c-acc { color: var(--accent); }
+  .c-num { color: #f78c6c; }
+
+  .highlight-content {}
+  .feature-list { list-style: none; margin-top: 28px; }
+  .feature-list li {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: rgba(232,237,245,0.8);
+  }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list .check {
+    color: var(--green); font-size: 14px;
+    flex-shrink: 0; margin-top: 2px;
+  }
+
+  /* ── API ARCHITECTURE ── */
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-flow::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .arch-node {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 28px;
+    text-align: center;
+    position: relative; z-index: 1;
+    min-width: 120px;
+  }
+  .arch-node.center {
+    background: rgba(0,229,255,.06);
+    border-color: rgba(0,229,255,.3);
+    padding: 28px 40px;
+    box-shadow: 0 0 40px rgba(0,229,255,.08);
+  }
+  .arch-node-icon { font-size: 24px; margin-bottom: 8px; }
+  .arch-node-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: .1em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .arch-node.center .arch-node-name { color: var(--accent); }
+  .arch-arrow {
+    font-size: 18px; color: var(--accent);
+    opacity: .4; padding: 0 4px;
+    position: relative; z-index: 1;
+  }
+
+  /* ── USE CASES ── */
+  .cases-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .case-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    transition: transform .2s, border-color .2s;
+  }
+  .case-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,.15);
+  }
+  .case-header {
+    padding: 28px 28px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--case-from, rgba(0,229,255,.05)), transparent);
+  }
+  .case-icon { font-size: 28px; margin-bottom: 12px; }
+  .case-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .case-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; color: var(--accent); letter-spacing: .1em;
+  }
+  .case-body { padding: 24px 28px; }
+  .case-body p { font-size: 13.5px; color: rgba(232,237,245,0.65); line-height: 1.6; }
+
+  /* ── CTA SECTION ── */
+  .cta-section {
+    text-align: center;
+    padding: 120px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-section::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(0,229,255,.05), transparent);
+  }
+  .cta-tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 24px;
+    padding: 8px 20px;
+    border: 1px solid rgba(0,229,255,.2);
+    border-radius: 20px;
+  }
+  .cta-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 800; letter-spacing: -2px;
+    line-height: 1; margin-bottom: 24px;
+  }
+  .cta-desc {
+    font-size: 17px; font-weight: 300;
+    color: rgba(232,237,245,.6);
+    max-width: 520px; margin: 0 auto 48px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  footer .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+    color: var(--accent);
+  }
+  footer .logo span { color: var(--accent2); }
+  footer p {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: .1em; color: var(--muted);
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0; transform: translateY(30px);
+    transition: opacity .7s, transform .7s;
+  }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── MOBILE ── */
+  @media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .nav-links, .nav-badge { display: none; }
+    section { padding: 64px 20px; }
+    .hero { padding: 100px 20px 60px; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .bento-card.span-4, .bento-card.span-6, .bento-card.span-8 { grid-column: span 12; }
+    .highlight-grid { grid-template-columns: 1fr; }
+    .cases-grid { grid-template-columns: 1fr; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+
+  /* ── INPROGRESS BADGE ── */
+  .inprogress-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--yellow);
+    background: rgba(234,179,8,.08);
+    border: 1px solid rgba(234,179,8,.2);
+    padding: 3px 10px; border-radius: 3px; margin-top: 12px;
+  }
+  .inprogress-badge::before {
+    content: ''; width: 6px; height: 6px;
+    background: var(--yellow); border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 0 48px;
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">NAM<span>.</span></div>
+  <ul class="nav-links">
+    <li><a href="#integrations">Integrations</a></li>
+    <li><a href="#capabilities">Capabilities</a></li>
+    <li><a href="#usecases">Use Cases</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+  </ul>
+  <div class="nav-badge">v2.0 · Live</div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-grid"></div>
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <div class="hero-orb hero-orb-3"></div>
+
+  <div class="hero-eyebrow">Network Automation Machine</div>
+  <h1 class="hero-title">
+    <span class="accent">N</span>AM<br>
+    <span style="font-size:.42em; letter-spacing:-.5px; color: rgba(232,237,245,.55);">One Tool. Every Network.</span>
+  </h1>
+  <div class="hero-subtitle-word">Built by Patrick V. Llorente</div>
+  <p class="hero-desc">
+    NAM is a centralized network automation platform that unifies ServiceNow, Dynatrace, WhatsUpGold, Cisco, Citrix, PaloAlto, and more — turning hours of manual work into seconds of intelligent automation.
+  </p>
+  <div class="hero-ctas">
+    <a href="#capabilities" class="btn-primary">Explore Capabilities →</a>
+    <a href="#usecases" class="btn-outline">See Use Cases</a>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num">12+</div>
+    <div class="stat-label">Integrated Systems</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">100s</div>
+    <div class="stat-label">Devices Managed</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">~0</div>
+    <div class="stat-label">Manual Effort Required</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">24/7</div>
+    <div class="stat-label">Automated Monitoring</div>
+  </div>
+</div>
+
+<!-- INTEGRATIONS -->
+<section id="integrations">
+  <div class="section-label">Connected Platforms</div>
+  <h2 class="section-title reveal">Everything talks.<br>Through NAM.</h2>
+  <p class="section-desc reveal">NAM acts as the central nervous system — pulling data from, pushing updates to, and orchestrating actions across every major platform in your infrastructure stack.</p>
+
+  <div class="integrations-grid reveal">
+
+    <!-- ServiceNow -->
+    <div class="integration-card" style="--card-color: #62d84e; --card-bg: rgba(98,216,78,.07);">
+      <div class="int-header">
+        <div class="int-icon">🎫</div>
+        <div>
+          <div class="int-name">ServiceNow</div>
+          <div class="int-type">ITSM · API</div>
+        </div>
+      </div>
+      <p class="int-desc">Full lifecycle ticket intelligence. NAM reads incidents, change orders, change tasks, request tickets, and CMDB data — then takes action automatically without anyone lifting a finger.</p>
+      <div class="int-tags">
+        <span class="tag">Incidents</span>
+        <span class="tag">Change Orders</span>
+        <span class="tag">Change Tasks</span>
+        <span class="tag">Problem Tickets</span>
+        <span class="tag">CMDB</span>
+        <span class="tag">MS Teams Alerts</span>
+        <span class="tag">Cert Renewal</span>
+      </div>
+    </div>
+
+    <!-- WhatsUpGold -->
+    <div class="integration-card" style="--card-color: #f59e0b; --card-bg: rgba(245,158,11,.07);">
+      <div class="int-header">
+        <div class="int-icon">📡</div>
+        <div>
+          <div class="int-name">WhatsUpGold</div>
+          <div class="int-type">Network Monitoring · API</div>
+        </div>
+      </div>
+      <p class="int-desc">NAM uses WhatsUpGold as the backbone of network visibility — auto-generating always-current device inventories, auto-correcting dashboards, managing monitors, and enabling flood-controlled alerting with smart site-down detection.</p>
+      <div class="int-tags">
+        <span class="tag">Device Inventory</span>
+        <span class="tag">Smart Alerting</span>
+        <span class="tag">Dashboards</span>
+        <span class="tag">Flood Control</span>
+        <span class="tag">User Comments</span>
+        <span class="tag">Auto Backup</span>
+        <span class="tag">Healthcheck</span>
+      </div>
+    </div>
+
+    <!-- Dynatrace -->
+    <div class="integration-card" style="--card-color: #6366f1; --card-bg: rgba(99,102,241,.07);">
+      <div class="int-header">
+        <div class="int-icon">📈</div>
+        <div>
+          <div class="int-name">Dynatrace</div>
+          <div class="int-type">APM · API</div>
+        </div>
+      </div>
+      <p class="int-desc">Server and entity management at scale. NAM can query entities, bulk-schedule maintenance windows, confirm current maintenance status, log actions, and perform instant health checks — all from one command.</p>
+      <div class="int-tags">
+        <span class="tag">Maintenance Mode</span>
+        <span class="tag">Host Search</span>
+        <span class="tag">Health Checks</span>
+        <span class="tag">CPU/Memory/Disk</span>
+        <span class="tag">Network Charts</span>
+        <span class="tag">Scheduled Maint.</span>
+        <span class="tag">Audit Logs</span>
+      </div>
+    </div>
+
+    <!-- UIM -->
+    <div class="integration-card" style="--card-color: #ec4899; --card-bg: rgba(236,72,153,.07);">
+      <div class="int-header">
+        <div class="int-icon">🖥️</div>
+        <div>
+          <div class="int-name">CA UIM</div>
+          <div class="int-type">Infrastructure Monitoring · API</div>
+        </div>
+      </div>
+      <p class="int-desc">Parallel to Dynatrace, NAM controls UIM for device discovery, scheduling maintenance windows, confirming current states, and producing audit logs for compliance and review.</p>
+      <div class="int-tags">
+        <span class="tag">Device Lookup</span>
+        <span class="tag">Maintenance Mode</span>
+        <span class="tag">Schedule Windows</span>
+        <span class="tag">Audit Logs</span>
+      </div>
+    </div>
+
+    <!-- Citrix / Load Balancer -->
+    <div class="integration-card" style="--card-color: #00e5ff; --card-bg: rgba(0,229,255,.07);">
+      <div class="int-header">
+        <div class="int-icon">⚖️</div>
+        <div>
+          <div class="int-name">Citrix Load Balancers</div>
+          <div class="int-type">ADC · API</div>
+        </div>
+      </div>
+      <p class="int-desc">NAM turns complex multi-LB management into a simple interface. Pull VIPs, bindings, backends, certificates, content switching, and HA status — unified into one centralized AG-Grid inventory across all load balancers.</p>
+      <div class="int-tags">
+        <span class="tag">VIP Inventory</span>
+        <span class="tag">Certificate Info</span>
+        <span class="tag">Backend Servers</span>
+        <span class="tag">Content Switching</span>
+        <span class="tag">HA Nodes</span>
+        <span class="tag">VLOOKUP Joins</span>
+      </div>
+    </div>
+
+    <!-- Cisco -->
+    <div class="integration-card" style="--card-color: #ff6200; --card-bg: rgba(255,98,0,.07);">
+      <div class="int-header">
+        <div class="int-icon">🔌</div>
+        <div>
+          <div class="int-name">Cisco Switches & Routers</div>
+          <div class="int-type">CLI / SSH · Multi-Site</div>
+        </div>
+      </div>
+      <p class="int-desc">Mass device operations that would take days are done in minutes. NAM connects to hundreds of Cisco devices simultaneously — parsing show commands, fixing interface descriptions, updating inventories, changing passwords, and pushing ACLs with validation emails.</p>
+      <div class="int-tags">
+        <span class="tag">Config Change Monitor</span>
+        <span class="tag">Annual Pwd Change</span>
+        <span class="tag">ACL Rollout</span>
+        <span class="tag">CDP Auto-Fix</span>
+        <span class="tag">Device Locator</span>
+        <span class="tag">Version Tracking</span>
+      </div>
+    </div>
+
+    <!-- PaloAlto -->
+    <div class="integration-card" style="--card-color: #ef4444; --card-bg: rgba(239,68,68,.07);">
+      <div class="int-header">
+        <div class="int-icon">🔥</div>
+        <div>
+          <div class="int-name">PaloAlto Firewalls</div>
+          <div class="int-type">NGFW · API</div>
+        </div>
+      </div>
+      <p class="int-desc">MAC-to-port tracing at scale. NAM queries PaloAlto firewalls to resolve IP addresses to MAC addresses, then traces exactly which switch port a server or device is physically connected to — across the entire network.</p>
+      <div class="int-tags">
+        <span class="tag">IP-to-MAC Lookup</span>
+        <span class="tag">Device Locator</span>
+        <span class="tag">Firewall Query</span>
+      </div>
+    </div>
+
+    <!-- Digi -->
+    <div class="integration-card" style="--card-color: #22c55e; --card-bg: rgba(34,197,94,.07);">
+      <div class="int-header">
+        <div class="int-icon">📟</div>
+        <div>
+          <div class="int-name">Digi Devices</div>
+          <div class="int-type">Console Servers · API</div>
+        </div>
+      </div>
+      <p class="int-desc">Annual password rotation, configuration backup, and quick status checks — all automated through NAM with zero manual SSH sessions required.</p>
+      <div class="int-tags">
+        <span class="tag">Password Change</span>
+        <span class="tag">Backup</span>
+        <span class="tag">Status Check</span>
+      </div>
+    </div>
+
+    <!-- Cohome1 / Excel -->
+    <div class="integration-card" style="--card-color: #84cc16; --card-bg: rgba(132,204,22,.07);">
+      <div class="int-header">
+        <div class="int-icon">📊</div>
+        <div>
+          <div class="int-name">Cohome1 / Excel Files</div>
+          <div class="int-type">File System · Live Sync</div>
+        </div>
+      </div>
+      <p class="int-desc">NAM reads live Excel files — like the Master Server List and VIP/Certificate files — keeping server ownership data and cert renewal schedules always current and searchable through the NAM interface.</p>
+      <div class="int-tags">
+        <span class="tag">Master Server List</span>
+        <span class="tag">VIP Certificates</span>
+        <span class="tag">Server Certificates</span>
+        <span class="tag">Renewal Tracking</span>
+      </div>
+    </div>
+
+    <!-- MS Teams -->
+    <div class="integration-card" style="--card-color: #818cf8; --card-bg: rgba(129,140,248,.07);">
+      <div class="int-header">
+        <div class="int-icon">💬</div>
+        <div>
+          <div class="int-name">Microsoft Teams</div>
+          <div class="int-type">Collaboration · Webhook + Chat</div>
+        </div>
+      </div>
+      <p class="int-desc">Instant, intelligent notifications pushed straight to group chats and channels. Teams always get the right information — what changed, what matters, what action to take. Chat commands like <code style="color:var(--accent)">!check incidents</code> let users query NAM directly from Teams.</p>
+      <div class="int-tags">
+        <span class="tag">Incident Alerts</span>
+        <span class="tag">Change Notifications</span>
+        <span class="tag">Chat Commands</span>
+        <span class="tag">Group Channels</span>
+      </div>
+      <div class="inprogress-badge">Chat Detection In Progress</div>
+    </div>
+
+    <!-- Email / Outlook -->
+    <div class="integration-card" style="--card-color: #38bdf8; --card-bg: rgba(56,189,248,.07);">
+      <div class="int-header">
+        <div class="int-icon">📧</div>
+        <div>
+          <div class="int-name">MS Outlook / Email</div>
+          <div class="int-type">Reporting · Scheduled</div>
+        </div>
+      </div>
+      <p class="int-desc">Daily, weekly, and monthly reports delivered automatically. Healthcheck results, implementation outputs, filtered database snapshots, and critical device summaries — all emailed without anyone requesting them.</p>
+      <div class="int-tags">
+        <span class="tag">Daily Reports</span>
+        <span class="tag">Weekly Summaries</span>
+        <span class="tag">Healthcheck Emails</span>
+        <span class="tag">Implementation Output</span>
+        <span class="tag">Filtered Exports</span>
+      </div>
+    </div>
+
+    <!-- ROSS AD -->
+    <div class="integration-card" style="--card-color: #f472b6; --card-bg: rgba(244,114,182,.07);">
+      <div class="int-header">
+        <div class="int-icon">🔐</div>
+        <div>
+          <div class="int-name">ROSS Active Directory</div>
+          <div class="int-type">Identity · LDAP</div>
+        </div>
+      </div>
+      <p class="int-desc">NAM resolves who made configuration changes by cross-referencing network device logs against Active Directory — automatically emailing engineers to provide their Change Order number for audit compliance.</p>
+      <div class="int-tags">
+        <span class="tag">Change Attribution</span>
+        <span class="tag">CO Audit</span>
+        <span class="tag">Group Membership</span>
+        <span class="tag">Auto-Email</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CORE CAPABILITIES BENTO -->
+<section id="capabilities">
+  <div class="section-label">Core Capabilities</div>
+  <h2 class="section-title reveal">What NAM actually does.</h2>
+  <p class="section-desc reveal">Not just a monitoring tool. NAM is an execution engine — it doesn't just see problems, it fixes them.</p>
+
+  <div class="bento reveal">
+
+    <div class="bento-card span-4" style="--line-color: #00e5ff;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">01</div>
+      <div class="bento-icon">🗄️</div>
+      <div class="bento-title">Centralized Network Device Inventory</div>
+      <p class="bento-desc">Auto-updating database of every network device — always current, always searchable. NAM parses show commands from Cisco switches and routers to build a living database with location, version, interfaces, descriptions, and more.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #ff6200;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">02</div>
+      <div class="bento-icon">⚡</div>
+      <div class="bento-title">Centralized VIP Inventory</div>
+      <p class="bento-desc">One table showing every Virtual IP across all load balancers — backends, certificates, content switching, HA status — joined via VLOOKUP-style formulas into a single AG-Grid interface anyone can use without CLI knowledge.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #22c55e;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">03</div>
+      <div class="bento-icon">🔔</div>
+      <div class="bento-title">Intelligent Incident Notifications</div>
+      <p class="bento-desc">NAM knows what's important. When an incident ticket arrives, it filters the noise, extracts the critical fields, and pushes a clean, actionable alert to the right MS Teams group chat instantly — with full update tracking.</p>
+    </div>
+
+    <div class="bento-card span-6" style="--line-color: #7c3aed;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">04</div>
+      <div class="bento-icon">🔐</div>
+      <div class="bento-title">Mass Password Changes in Minutes</div>
+      <p class="bento-desc">Annual password rotation to hundreds of Cisco and Digi devices across all sites — executed simultaneously with real-time validation output per device. What used to take days of manual work takes minutes with full auditability. Results are emailed automatically.</p>
+    </div>
+
+    <div class="bento-card span-6" style="--line-color: #ec4899;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">05</div>
+      <div class="bento-icon">📋</div>
+      <div class="bento-title">Automated Certificate Renewal Review</div>
+      <p class="bento-desc">NAM monitors Change Tasks in ServiceNow for certificate renewal activities on load balancer VIPs. It automatically reviews the installer's work, validates the certificate bindings, and produces a detailed compliance report without manual checking.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #f59e0b;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">06</div>
+      <div class="bento-icon">🌊</div>
+      <div class="bento-title">Ticket Flood Control</div>
+      <p class="bento-desc">When a site is down, NAM detects it and prevents a cascade of duplicate alerts from flooding the ticket queue — one alert per event, not dozens. Intelligent suppression with full site-awareness.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #38bdf8;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">07</div>
+      <div class="bento-icon">🏥</div>
+      <div class="bento-title">Automated Device Healthchecks</div>
+      <p class="bento-desc">NAM runs baseline comparisons on Cisco and Citrix devices, sends the diff in a single email showing exactly what changed in show commands — and distinguishes between real outages and false positives automatically.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #ef4444;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">08</div>
+      <div class="bento-icon">🗺️</div>
+      <div class="bento-title">Device & Server Locator</div>
+      <p class="bento-desc">Enter an IP. NAM queries PaloAlto for the MAC address, cross-references Cisco ARP tables, and returns the exact switch, port, and location the device is physically connected to. Across your entire network — in seconds.</p>
+    </div>
+
+    <div class="bento-card span-6" style="--line-color: #22c55e;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">09</div>
+      <div class="bento-icon">🚀</div>
+      <div class="bento-title">Scheduled Implementations at Scale</div>
+      <p class="bento-desc">Push ACL changes, config updates, or any network command to hundreds of devices across all sites — simultaneously, on a schedule, with per-device validation email output. Weekend maintenance windows that used to require a team are now a single NAM job.</p>
+    </div>
+
+    <div class="bento-card span-6" style="--line-color: #818cf8;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">10</div>
+      <div class="bento-icon">📊</div>
+      <div class="bento-title">Live AG-Grid Databases with Formulas</div>
+      <p class="bento-desc">NAM's front-end is powered by AG-Grid — an Excel-like interface with live data, VLOOKUP-style cross-database joins, custom formula columns, filtering, sorting, and export. Users get the power of a spreadsheet over live network data — no SQL needed.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #00e5ff;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">11</div>
+      <div class="bento-icon">📉</div>
+      <div class="bento-title">Utilization Charts from Live APIs</div>
+      <p class="bento-desc">CPU, memory, disk, and network charts pulled live from Dynatrace and WhatsUpGold — rendered directly in NAM using Chart.js, so teams can troubleshoot without navigating to external tools.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #f472b6;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">12</div>
+      <div class="bento-icon">🔄</div>
+      <div class="bento-title">Configuration Change Monitoring</div>
+      <p class="bento-desc">NAM continuously monitors Cisco and Citrix devices for unauthorized or untracked configuration changes — alerting the right people via email with the full diff so nothing slips through unnoticed.</p>
+    </div>
+
+    <div class="bento-card span-4" style="--line-color: #ff6200;">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">13</div>
+      <div class="bento-icon">🔍</div>
+      <div class="bento-title">Filtered Report Delivery</div>
+      <p class="bento-desc">Users save database filter views in NAM. NAM then sends those filtered results — daily, weekly, or monthly — to email or MS Teams automatically. Critical monitor lists, backup status, certificate expiry — delivered on schedule.</p>
+    </div>
+
+    <div class="bento-card span-12" style="--line-color: #7c3aed; background: linear-gradient(135deg, rgba(124,58,237,.08), transparent);">
+      <div class="bento-accent-line"></div>
+      <div class="bento-num">🤖 AI-Powered</div>
+      <div class="bento-icon">✨</div>
+      <div class="bento-title">AI Prompts for Data Summarization</div>
+      <p class="bento-desc" style="max-width: 800px;">NAM integrates AI prompts to generate intelligent summaries of reports, healthcheck outputs, and bulk data — turning raw network telemetry into readable, actionable narratives for teams and leadership without manual write-ups.</p>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="section-label">System Architecture</div>
+  <h2 class="section-title reveal">NAM as the hub.<br>Everything else as spokes.</h2>
+  <p class="section-desc reveal">NAM's custom API engine (FastAPI + AG-Grid) acts as the centralized data layer — all integrations flow through it, and all users interact with it through one unified web interface.</p>
+
+  <div class="arch-flow reveal">
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 200px;">
+      <div class="arch-node"><div class="arch-node-icon">🎫</div><div class="arch-node-name">ServiceNow</div></div>
+      <div class="arch-node"><div class="arch-node-icon">📡</div><div class="arch-node-name">WhatsUpGold</div></div>
+      <div class="arch-node"><div class="arch-node-icon">📈</div><div class="arch-node-name">Dynatrace</div></div>
+      <div class="arch-node"><div class="arch-node-icon">🖥️</div><div class="arch-node-name">UIM</div></div>
+      <div class="arch-node"><div class="arch-node-icon">🔌</div><div class="arch-node-name">Cisco</div></div>
+      <div class="arch-node"><div class="arch-node-icon">⚖️</div><div class="arch-node-name">Citrix</div></div>
+    </div>
+    <div class="arch-arrow" style="font-size:28px; padding: 0 24px;">⟷</div>
+    <div class="arch-node center">
+      <div class="arch-node-icon">🧠</div>
+      <div style="font-family:'Syne',sans-serif; font-size:24px; font-weight:800; color: var(--accent); margin-bottom: 4px;">NAM</div>
+      <div class="arch-node-name">FastAPI · AG-Grid · Python</div>
+    </div>
+    <div class="arch-arrow" style="font-size:28px; padding: 0 24px;">⟷</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 200px;">
+      <div class="arch-node"><div class="arch-node-icon">🔥</div><div class="arch-node-name">PaloAlto</div></div>
+      <div class="arch-node"><div class="arch-node-icon">💬</div><div class="arch-node-name">MS Teams</div></div>
+      <div class="arch-node"><div class="arch-node-icon">📧</div><div class="arch-node-name">Email</div></div>
+      <div class="arch-node"><div class="arch-node-icon">📟</div><div class="arch-node-name">Digi</div></div>
+      <div class="arch-node"><div class="arch-node-icon">🔐</div><div class="arch-node-name">Active Dir.</div></div>
+      <div class="arch-node"><div class="arch-node-icon">📊</div><div class="arch-node-name">Excel Files</div></div>
+    </div>
+  </div>
+
+  <div style="margin-top: 48px;" class="highlight-grid reveal">
+    <div class="highlight-visual">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:16px;font-family:'Space Mono',monospace;">NAM / API ENGINE — main.py (excerpt)</div>
+      <div class="code-line"><span class="ln">1</span><span><span class="c-kw">@app</span><span class="c-fn">.get</span>(<span class="c-str">"/api/database"</span>)</span></div>
+      <div class="code-line"><span class="ln">2</span><span><span class="c-kw">async def</span> <span class="c-fn">get_database</span>(request: Request):</span></div>
+      <div class="code-line"><span class="ln">3</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-cm"># Resolve DB from ID or path</span></span></div>
+      <div class="code-line"><span class="ln">4</span><span>&nbsp;&nbsp;&nbsp;&nbsp;db_file = <span class="c-fn">resolve_db_file</span>(db, file_cache)</span></div>
+      <div class="code-line"><span class="ln">5</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-cm"># Parse ServiceNow-style query</span></span></div>
+      <div class="code-line"><span class="ln">6</span><span>&nbsp;&nbsp;&nbsp;&nbsp;filters = <span class="c-fn">parse_sysparm_query</span>(sysparm_query)</span></div>
+      <div class="code-line"><span class="ln">7</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-cm"># Execute formulas + return data</span></span></div>
+      <div class="code-line"><span class="ln">8</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="c-kw">return</span> <span class="c-fn">query_json</span>(</span></div>
+      <div class="code-line"><span class="ln">9</span><span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;json_file, filters, offset,</span></div>
+      <div class="code-line"><span class="ln">10</span><span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;limit, attrs, formulas</span></div>
+      <div class="code-line"><span class="ln">11</span><span>&nbsp;&nbsp;&nbsp;&nbsp;)</span></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <div class="code-line"><span class="ln">·</span><span><span class="c-cm"># ServiceNow-style query syntax</span></span></div>
+        <div class="code-line"><span class="ln">·</span><span><span class="c-str">"statusLIKEdown^site=NYC"</span></span></div>
+        <div class="code-line"><span class="ln">·</span><span><span class="c-str">"cert_expiryNEXT_DAYS30"</span></span></div>
+        <div class="code-line"><span class="ln">·</span><span><span class="c-str">"_refresh_atPAST_DAYS7"</span></span></div>
+        <div class="code-line"><span class="ln">·</span><span><span class="c-str">"deviceBETWEEN2024-01-01..2025-01-01"</span></span></div>
+      </div>
+    </div>
+    <div class="highlight-content">
+      <div class="section-label" style="margin-bottom: 12px;">Custom Database Engine</div>
+      <h3 style="font-family:'Syne',sans-serif; font-size:28px; font-weight:700; margin-bottom:16px; letter-spacing:-1px;">A query engine built for<br>network teams.</h3>
+      <p style="font-size:14px; color:rgba(232,237,245,.65); line-height:1.7; margin-bottom: 8px;">NAM's core API supports a ServiceNow-style query language so any team member can filter, sort, and join data from any connected system — without SQL or Python knowledge.</p>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> ServiceNow-style sysparm_query syntax (LIKE, IN, BETWEEN, ISEMPTY, regex, date ranges)</li>
+        <li><span class="check">✓</span> VLOOKUP-style cross-database joins — connect inventories with one formula</li>
+        <li><span class="check">✓</span> Runtime formula columns — CONCAT, IF, CHECK2TEXT, CHECKSAMETEXT, MATCH</li>
+        <li><span class="check">✓</span> Interface name normalization (expand GigabitEthernet ↔ shorten Gi)</li>
+        <li><span class="check">✓</span> Streaming JSON with ijson for handling massive datasets without memory issues</li>
+        <li><span class="check">✓</span> Topological formula dependency resolution — no circular dependency errors</li>
+        <li><span class="check">✓</span> Filter ID system — save any complex filter, reuse it in dashboards, emails, or Teams</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- USE CASES -->
+<section id="usecases">
+  <div class="section-label">Real-World Use Cases</div>
+  <h2 class="section-title reveal">Problems solved.<br>Every day.</h2>
+  <p class="section-desc reveal">These aren't hypothetical benefits. These are live automations running right now.</p>
+
+  <div class="cases-grid reveal">
+
+    <div class="case-card" style="--case-from: rgba(0,229,255,.08);">
+      <div class="case-header">
+        <div class="case-icon">🚨</div>
+        <div class="case-title">Site-Down Detection & Alert</div>
+        <div class="case-time">Execution: Real-time</div>
+      </div>
+      <div class="case-body">
+        <p>NAM detects a site is unreachable via WhatsUpGold, suppresses all child device alerts to prevent ticket flooding, and sends a single, clean MS Teams notification to the on-call team with all relevant context — before anyone even notices something is wrong.</p>
+      </div>
+    </div>
+
+    <div class="case-card" style="--case-from: rgba(255,98,0,.08);">
+      <div class="case-header">
+        <div class="case-icon">🔑</div>
+        <div class="case-title">Annual Password Rotation</div>
+        <div class="case-time">Execution: Minutes, not days</div>
+      </div>
+      <div class="case-body">
+        <p>Select hundreds of Cisco routers, switches, and Digi devices from the NAM inventory. Click run. NAM connects to all of them simultaneously, changes the password, validates the new credential, and emails a per-device success/failure report — all without a single manual SSH session.</p>
+      </div>
+    </div>
+
+    <div class="case-card" style="--case-from: rgba(34,197,94,.08);">
+      <div class="case-header">
+        <div class="case-icon">📜</div>
+        <div class="case-title">Certificate Renewal Audit</div>
+        <div class="case-time">Execution: Automated on ticket</div>
+      </div>
+      <div class="case-body">
+        <p>When a Change Task for VIP certificate renewal arrives in ServiceNow, NAM automatically reviews the installer's work — verifying that the right cert is bound to the right VIP on the right load balancer — and posts the result back to the ticket.</p>
+      </div>
+    </div>
+
+    <div class="case-card" style="--case-from: rgba(124,58,237,.08);">
+      <div class="case-header">
+        <div class="case-icon">📡</div>
+        <div class="case-title">Who Changed That Config?</div>
+        <div class="case-time">Execution: Automatic attribution</div>
+      </div>
+      <div class="case-body">
+        <p>NAM detects a configuration change on a network device, cross-references the timestamp against ROSS Active Directory login records, identifies the engineer responsible, and automatically emails them requesting their Change Order number for compliance.</p>
+      </div>
+    </div>
+
+    <div class="case-card" style="--case-from: rgba(239,68,68,.08);">
+      <div class="case-header">
+        <div class="case-icon">📍</div>
+        <div class="case-title">Locate Any Device Instantly</div>
+        <div class="case-time">Execution: Seconds</div>
+      </div>
+      <div class="case-body">
+        <p>An IP address is reported suspicious. NAM queries PaloAlto for the MAC, Cisco ARP tables for the switch, and CDP for the port — returning the exact physical location of the device across the entire network infrastructure in under 10 seconds.</p>
+      </div>
+    </div>
+
+    <div class="case-card" style="--case-from: rgba(56,189,248,.08);">
+      <div class="case-header">
+        <div class="case-icon">🌐</div>
+        <div class="case-title">ACL Push to All Sites</div>
+        <div class="case-time">Execution: Minutes with validation</div>
+      </div>
+      <div class="case-body">
+        <p>A new ACL rule needs to go to every branch site. NAM pushes it simultaneously to all Cisco devices, captures the output of each, validates the change was accepted, and emails a full result log — replacing what used to be a weekend change window with a 5-minute NAM job.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- IN PROGRESS -->
+<section>
+  <div class="section-label">Coming Soon</div>
+  <h2 class="section-title reveal">The roadmap.</h2>
+  <p class="section-desc reveal">NAM is actively expanding. These integrations are in development and ready to connect the moment the business needs them.</p>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;" class="reveal">
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">🌐</div>
+      <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:16px; margin-bottom:8px;">Lumen API</div>
+      <p style="font-size:13px; color:rgba(232,237,245,.55); line-height:1.6;">Carrier and circuit management integration for automated WAN visibility and provisioning workflows.</p>
+      <div class="inprogress-badge">In Progress</div>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">🗺️</div>
+      <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:16px; margin-bottom:8px;">GestioIP / IPVault</div>
+      <p style="font-size:13px; color:rgba(232,237,245,.55); line-height:1.6;">IPAM integration — correlating IP assignments with device inventory for complete address management visibility.</p>
+      <div class="inprogress-badge">In Progress</div>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">💬</div>
+      <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:16px; margin-bottom:8px;">MS Teams Chat Detection</div>
+      <p style="font-size:13px; color:rgba(232,237,245,.55); line-height:1.6;">Type <code style="color:var(--accent); font-size:12px;">!check incidents</code> in a Teams channel and NAM responds with live data from its databases — without leaving the chat.</p>
+      <div class="inprogress-badge">In Progress</div>
+    </div>
+
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px;">
+      <div style="font-size: 24px; margin-bottom: 12px;">🔌</div>
+      <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:16px; margin-bottom:8px;">Any New System</div>
+      <p style="font-size:13px; color:rgba(232,237,245,.55); line-height:1.6;">NAM's architecture is designed to onboard new integrations rapidly. If your team uses it, NAM can connect to it — the framework is ready.</p>
+      <div style="margin-top:12px; font-family:'Space Mono',monospace; font-size:9px; color:var(--accent); letter-spacing:.1em;">EXTENSIBLE BY DESIGN</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="contact">
+  <div class="cta-tag">Ready to Deploy</div>
+  <h2 class="cta-title">Stop doing manually<br>what NAM can do.</h2>
+  <p class="cta-desc">Every hour your team spends on repetitive network tasks is an hour NAM can give back. One platform. Every system. Zero excuses.</p>
+  <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+    <a href="#integrations" class="btn-primary">Explore All Integrations →</a>
+    <a href="#usecases" class="btn-outline">See Real Use Cases</a>
+  </div>
+  <div style="margin-top:56px; display:flex; align-items:center; justify-content:center; gap:48px; flex-wrap:wrap; opacity:.5;">
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">ServiceNow</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">Dynatrace</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">WhatsUpGold</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">Cisco</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">Citrix</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">PaloAlto</span>
+    <span style="font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.15em; text-transform:uppercase;">MS Teams</span>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="logo">NAM<span>.</span></div>
+  <p>Built by Patrick V. Llorente · Accenture Network Automation</p>
+  <p>Network Automation Machine · Proprietary</p>
+</footer>
+
+<script>
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  reveals.forEach(el => observer.observe(el));
+
+  // Smooth nav active state
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
+</body>
+</html>
