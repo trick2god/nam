@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Emoji Cinema 🍿 · Guess the Movie</title>
+<meta name="description" content="Wedding game time for Michelle Anne Perez & Arvin Padua — guess the movie from emojis! A new clue every 10 seconds, 151 movies, 9 categories.">
+<meta name="theme-color" content="#050b18">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍿</text></svg>">
+<style>
+  :root {
+    --nam: #050b18; --nam2: #0a1426; --nam3: #111f3a; --ink: rgba(255,255,255,.96); --ink2: rgba(255,255,255,.66); --muted: rgba(255,255,255,.38);
+    --card: rgba(255,255,255,.05); --card2: rgba(255,255,255,.09); --line: rgba(255,255,255,.1);
+    --pink: #ff6b1a; --yellow: #ffc24a; --cyan: #4db8ff; --green: #25d0a0; --red: #ff4d6d; --orange: #ff6b1a; --violet: #a888ff;
+    --mono: 'Cascadia Code', 'Consolas', 'SF Mono', monospace;
+    --font: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, 'Nunito', sans-serif;
+    --round: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { font-family: var(--font); color: var(--ink); background: var(--nam); overflow-x: hidden; min-height: 100%; -webkit-font-smoothing: antialiased; }
+  body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 90% 70% at 20% 0%, rgba(255,107,26,.14), transparent 55%), radial-gradient(ellipse 80% 60% at 90% 100%, rgba(77,184,255,.11), transparent 55%); }
+  body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 62px 62px; mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 78%); }
+  #rail { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,.07); z-index: 30; }
+  #railfill { height: 100%; width: 0; background: linear-gradient(90deg, var(--orange), var(--yellow)); box-shadow: 0 0 14px rgba(255,107,26,.7); transition: width .55s cubic-bezier(.4,0,.2,1); }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  .hidden { display: none !important; }
+
+  /* floating background emojis */
+  .float-bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+  .float-bg span { position: absolute; bottom: -60px; font-size: 34px; opacity: .09; animation: rise linear infinite; filter: saturate(1.4); }
+  @keyframes rise { to { transform: translateY(-115vh) rotate(360deg); } }
+
+  /* top bar */
+  .top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 12px 18px; backdrop-filter: blur(10px); background: rgba(5,11,24,.7); border-bottom: 1px solid var(--line); }
+  .logo { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .logo .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; background: linear-gradient(135deg, var(--orange), var(--yellow)); box-shadow: 0 8px 22px -10px var(--orange); }
+  .logo small { display: block; font: 800 9.5px var(--mono); letter-spacing: .26em; color: var(--orange); }
+  .logo b { font-size: 17px; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+  .sp { flex: 1; }
+  /* the couple, centred in the top bar while playing (desktop) · instead of the title (phone) */
+  .tcouple { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; line-height: 1.1; pointer-events: none; white-space: nowrap; display: none; }
+  body.playing .tcouple { display: block; }
+  .tcouple small { display: block; font: 700 9.5px var(--mono); letter-spacing: .26em; text-transform: uppercase; color: #ff8fb8; margin-bottom: 3px; }
+  .tcouple b { font-size: 21px; font-weight: 800; letter-spacing: -.02em; }
+  .tcouple .amp { color: #ff8fb8; margin: 0 .22em; font-weight: 400; }
+  .tcouple .short { display: none; }
+  .pill { height: 36px; padding: 0 14px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13.5px; }
+  .hud .pill { font-family: var(--mono); font-size: 12.5px; }
+  .pill:hover { background: var(--card2); }
+
+  main { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* home */
+  .hero { text-align: center; padding: 18px 0 8px; }
+  .hero .eyebrow { justify-content: center; }
+  .hero .eyebrow::before { content: ''; height: 1px; width: 58px; background: linear-gradient(270deg, var(--orange), transparent); }
+  .hero h1 { font-size: clamp(40px, 8vw, 92px); line-height: .95; font-weight: 800; letter-spacing: -.035em; }
+  .hero h1 .grad { background: linear-gradient(170deg, #fff 20%, var(--yellow) 62%, var(--orange) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .eyebrow { font: 700 11.5px var(--mono); letter-spacing: .3em; text-transform: uppercase; color: var(--orange); margin-bottom: 18px; display: flex; align-items: center; gap: 12px; }
+  .eyebrow::after { content: ''; height: 1px; width: 58px; background: linear-gradient(90deg, var(--orange), transparent); }
+  @keyframes shine { to { background-position: 200% 0; } }
+  .couple { margin: 0 auto 20px; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 26px; border-radius: 22px; background: linear-gradient(135deg, rgba(255,143,184,.16), rgba(255,194,74,.12)); border: 1px solid rgba(255,143,184,.4); }
+  .couple .nm { font-size: clamp(22px, 4.4vw, 38px); font-weight: 800; letter-spacing: -.02em; }
+  .couple .nm .amp { color: #ff8fb8; font-weight: 400; margin: 0 .2em; }
+  .couple small { font: 700 11px var(--mono); letter-spacing: .24em; text-transform: uppercase; color: #ff8fb8; }
+  .heart { display: inline-block; animation: beat 1.2s ease-in-out infinite; }
+  @keyframes beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } 45% { transform: scale(1.18); } }
+  .bonus { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; padding: 6px 12px; border-radius: 99px; font: 800 12px var(--mono); letter-spacing: .1em; background: linear-gradient(135deg, #ff8fb8, var(--yellow)); color: var(--nam); animation: beat 1.6s ease-in-out infinite; }
+  .hero p { margin-top: 12px; color: var(--ink2); font-size: clamp(15px, 2.4vw, 19px); }
+  .marquee { margin: 22px auto 6px; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+  .marquee div { display: inline-flex; gap: 34px; white-space: nowrap; animation: slide 40s linear infinite; font-size: 34px; }
+  .marquee div span { opacity: .95; }
+  @keyframes slide { to { transform: translateX(-50%); } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 26px; padding: 20px; backdrop-filter: blur(8px); box-shadow: 0 30px 60px -30px rgba(0,0,0,.6); }
+  .sec-t { font: 700 11px var(--mono); letter-spacing: .28em; color: var(--orange); margin: 20px 0 10px; text-transform: uppercase; display: flex; align-items: center; gap: 12px; }
+  .sec-t::after { content: ''; height: 1px; width: 58px; background: linear-gradient(90deg, var(--orange), transparent); }
+  .sec-t:first-child { margin-top: 0; }
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .mode { text-align: left; padding: 16px; border-radius: 20px; background: rgba(255,255,255,.06); border: 2px solid transparent; transition: transform .15s, border-color .15s, background .15s; }
+  .mode:hover { transform: translateY(-3px); background: rgba(255,255,255,.1); }
+  .mode.on { border-color: var(--yellow); background: rgba(255,210,63,.12); box-shadow: 0 10px 30px -14px var(--yellow); }
+  .mode .e { font-size: 34px; }
+  .mode b { display: block; font-size: 18px; margin: 6px 0 3px; }
+  .mode span { font-size: 13px; color: var(--ink2); line-height: 1.4; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 9px 14px; border-radius: 99px; background: rgba(255,255,255,.07); border: 2px solid transparent; font-weight: 700; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; transition: transform .12s; }
+  .chip:hover { transform: scale(1.04); }
+  .chip.on { border-color: var(--c, var(--yellow)); background: color-mix(in srgb, var(--c, var(--yellow)) 22%, transparent); }
+  .chip small { color: var(--muted); font-weight: 600; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .seg { display: inline-flex; background: rgba(255,255,255,.07); border-radius: 99px; padding: 4px; }
+  .seg button { padding: 8px 16px; border-radius: 99px; font-weight: 800; font-size: 14px; color: var(--ink2); }
+  .seg button.on { background: linear-gradient(135deg, var(--orange), #f25f10); color: #fff; }
+  .big { margin-top: 22px; width: 100%; padding: 18px; border-radius: 18px; font-size: 21px; font-weight: 800; letter-spacing: -.01em; background: linear-gradient(135deg, var(--orange), #f25f10); box-shadow: 0 16px 36px -14px rgba(255,107,26,.8); transition: transform .15s, filter .15s; }
+  .big:hover { transform: translateY(-2px) scale(1.01); filter: brightness(1.08); }
+  .big:active { transform: scale(.98); }
+  .ghost { padding: 12px 18px; border-radius: 16px; font-weight: 800; background: rgba(255,255,255,.08); border: 1px solid var(--line); }
+  .ghost:hover { background: rgba(255,255,255,.14); }
+  .daily { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(135deg, rgba(77,184,255,.12), rgba(168,136,255,.12)); border: 1px solid rgba(77,184,255,.35); text-align: left; width: 100%; }
+  .daily .e { font-size: 34px; }
+  .daily b { font-size: 17px; display: block; }
+  .daily span { font-size: 13px; color: var(--ink2); }
+  .bests { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; justify-content: center; color: var(--ink2); font-size: 13px; }
+  .bests b { color: var(--yellow); }
+  .teams { display: grid; gap: 8px; }
+  .team-ed { display: flex; gap: 8px; align-items: center; }
+  .team-ed button.av { width: 46px; height: 46px; border-radius: 14px; font-size: 24px; background: rgba(255,255,255,.08); }
+  .team-ed input { flex: 1; height: 46px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0,0,0,.2); padding: 0 14px; font-weight: 800; outline: none; }
+  .team-ed input:focus { border-color: var(--yellow); }
+  .how { margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .how div { background: rgba(255,255,255,.05); border-radius: 16px; padding: 12px; font-size: 13px; color: var(--ink2); line-height: 1.45; }
+  .how div b { display: block; color: #fff; font-size: 14px; margin-bottom: 2px; }
+  .how div .n { font-size: 26px; }
+
+  /* game */
+  .hud { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .hud .pill b { color: var(--yellow); }
+  .streak { color: var(--orange); }
+  .stage { position: relative; text-align: center; padding: 26px 18px 20px; border-radius: 28px; background: linear-gradient(180deg, rgba(17,31,58,.85), rgba(10,20,38,.75)); border: 1px solid var(--line); overflow: hidden; box-shadow: 0 30px 70px -36px #000; }
+  .stage::before { content: ''; position: absolute; inset: -40% -10% auto; height: 70%; background: radial-gradient(closest-side, rgba(255,194,74,.16), transparent); pointer-events: none; }
+  .catchip { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 99px; font-size: 13px; font-weight: 800; background: color-mix(in srgb, var(--c) 25%, transparent); border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
+  .emojis { margin: 18px 0 10px; font-size: clamp(54px, 12vw, 104px); line-height: 1.15; display: flex; justify-content: center; gap: .12em; flex-wrap: wrap; }
+  .emojis span { display: inline-block; animation: pop .55s cubic-bezier(.2,1.6,.4,1) both; filter: drop-shadow(0 10px 18px rgba(0,0,0,.35)); }
+  .emojis span:hover { animation: wiggle .5s; }
+  @keyframes pop { from { transform: scale(0) rotate(-30deg); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes wiggle { 25% { transform: rotate(-12deg) scale(1.1); } 75% { transform: rotate(12deg) scale(1.1); } }
+  .timer { max-width: 560px; margin: 8px auto 0; }
+  .tbar { height: 14px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; position: relative; }
+  .tbar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; transition: width .1s linear; background: linear-gradient(90deg, var(--orange), var(--yellow)); box-shadow: 0 0 14px rgba(255,107,26,.6); }
+  .tlab { display: flex; justify-content: space-between; margin-top: 7px; font: 700 13px var(--mono); color: var(--ink2); letter-spacing: .02em; }
+  .tlab .worth { color: var(--yellow); }
+  .tlab .soon { animation: blink .5s step-end infinite; color: var(--orange); }
+  @keyframes blink { 50% { opacity: .35; } }
+  .dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .dots i { width: 34px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); transition: background .3s; }
+  .dots i.on { background: var(--orange); box-shadow: 0 0 10px rgba(255,107,26,.8); }
+  .clues { display: grid; gap: 9px; margin-top: 16px; }
+  .clue { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 18px; background: rgba(255,255,255,.05); border: 1px dashed var(--line); color: var(--muted); font-weight: 700; min-height: 54px; text-align: left; }
+  .clue .n { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font: 800 13px var(--mono); flex-shrink: 0; background: rgba(255,255,255,.08); }
+  .clue.on { color: #fff; border-style: solid; border-color: color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 16%, transparent); animation: flip .5s ease both; font-size: 17px; }
+  .clue.on .n { background: var(--c); color: var(--nam); }
+  @keyframes flip { from { transform: rotateX(90deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  .answer { margin-top: 16px; display: flex; gap: 10px; }
+  .answer input { flex: 1; min-width: 0; height: 60px; border-radius: 20px; border: 2px solid var(--line); background: rgba(0,0,0,.25); padding: 0 20px; font-size: 20px; font-weight: 800; outline: none; transition: border-color .2s; }
+  .answer input:focus { border-color: var(--orange); box-shadow: 0 0 0 5px rgba(255,107,26,.15); }
+  .answer input.shake { animation: shake .4s; border-color: var(--red); }
+  @keyframes shake { 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+  .answer .go { height: 60px; padding: 0 26px; border-radius: 18px; font-weight: 800; font-size: 18px; background: linear-gradient(135deg, var(--orange), #f25f10); color: #fff; box-shadow: 0 12px 28px -14px rgba(255,107,26,.9); }
+  .feedback { min-height: 26px; margin-top: 10px; font-weight: 800; font-size: 15px; text-align: center; }
+  .feedback.bad { color: var(--red); } .feedback.close { color: var(--orange); }
+  .choices { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice { padding: 18px 14px; border-radius: 20px; font-weight: 900; font-size: 18px; background: rgba(255,255,255,.08); border: 2px solid var(--line); transition: transform .12s, background .12s; }
+  .choice:hover:not(:disabled) { transform: translateY(-2px); background: rgba(255,255,255,.14); }
+  .choice:disabled { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
+  .party { margin-top: 16px; display: grid; gap: 10px; }
+  .party .who { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .party .tb { padding: 16px; border-radius: 20px; font-weight: 900; font-size: 18px; background: color-mix(in srgb, var(--c) 25%, transparent); border: 2px solid var(--c); transition: transform .12s; }
+  .party .tb:hover { transform: scale(1.03); }
+  .party .tb small { display: block; font-size: 12px; opacity: .8; }
+  .party .hint { text-align: center; color: var(--ink2); font-size: 14px; }
+  .tools { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .tools button { padding: 10px 16px; border-radius: 14px; font-weight: 800; font-size: 14px; background: rgba(255,255,255,.07); border: 1px solid var(--line); }
+  .tools button:hover { background: rgba(255,255,255,.14); }
+  .kbd { font-size: 11px; color: var(--muted); margin-left: 4px; border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .paused { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: rgba(5,11,24,.88); backdrop-filter: blur(8px); font-size: 26px; font-weight: 900; }
+
+  /* reveal */
+  .ov { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgba(5,11,24,.78); backdrop-filter: blur(6px); animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; } }
+  .rv { width: min(820px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; grid-template-columns: 290px 1fr; gap: 22px; padding: 22px; border-radius: 30px; background: linear-gradient(160deg, var(--nam3), var(--nam)); border: 1px solid var(--line); box-shadow: 0 40px 90px -30px #000; animation: zoom .45s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes zoom { from { transform: scale(.8); opacity: 0; } }
+  .poster { position: relative; aspect-ratio: 2 / 3; border-radius: 20px; overflow: hidden; perspective: 900px; }
+  .poster .in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.3,1.3,.4,1); }
+  .poster.flip .in { transform: rotateY(180deg); }
+  .poster .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 20px; display: grid; place-items: center; text-align: center; }
+  .poster .front { background: linear-gradient(135deg, var(--orange), var(--yellow)); font-size: 80px; }
+  .poster .front small { display: block; font-size: 14px; font-weight: 800; margin-top: 6px; }
+  .poster .back { transform: rotateY(180deg); background: #000; }
+  .poster .back img { width: 100%; height: 100%; object-fit: cover; }
+  .poster .back .fb { padding: 20px; font-size: 64px; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 70%, #000), var(--nam)); width: 100%; height: 100%; display: grid; place-items: center; align-content: center; gap: 8px; }
+  .poster .back .fb b { font-size: 22px; line-height: 1.15; }
+  .credit { font-size: 10.5px; color: var(--muted); margin-top: 6px; text-align: center; }
+  .res { font: 800 12.5px var(--mono); letter-spacing: .22em; text-transform: uppercase; }
+  .res.ok { color: var(--green); } .res.no { color: var(--orange); }
+  .rv h2 { font-size: clamp(28px, 4.6vw, 44px); line-height: 1.02; margin: 8px 0 6px; font-weight: 800; letter-spacing: -.03em; }
+  .rv .yr { color: var(--ink2); font-weight: 700; }
+  .rv .pts { margin: 14px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+  .rv .pts span { padding: 8px 14px; border-radius: 14px; background: rgba(255,255,255,.08); font-weight: 800; font-size: 14px; }
+  .rv .pts span b { color: var(--yellow); }
+  .rv ol { padding-left: 20px; color: var(--ink2); font-size: 14px; line-height: 1.6; }
+  .rv .em { font-size: 34px; margin-top: 6px; }
+  .rv .acts { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .rv .acts .big { margin: 0; width: auto; flex: 1; font-size: 19px; padding: 15px; }
+
+  /* end */
+  .end { text-align: center; }
+  .end .trophy { font-size: 90px; animation: pop .7s cubic-bezier(.2,1.6,.4,1) both; }
+  .end h2 { font-size: clamp(40px, 8vw, 84px); font-weight: 800; letter-spacing: -.045em; line-height: .95; background: linear-gradient(170deg, #fff 20%, var(--yellow) 62%, var(--orange) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .end .rank { display: inline-block; margin-top: 12px; padding: 8px 18px; border-radius: 99px; font: 800 12px var(--mono); letter-spacing: .2em; text-transform: uppercase; background: linear-gradient(135deg, var(--orange), var(--yellow)); color: var(--nam); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 22px 0; }
+  .stats div { background: rgba(255,255,255,.07); border-radius: 20px; padding: 14px; }
+  .stats b { display: block; font: 800 30px var(--mono); letter-spacing: -.03em; color: var(--yellow); }
+  .stats span { font-size: 13px; color: var(--ink2); }
+  .recap { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; text-align: left; }
+  .rc { border-radius: 16px; overflow: hidden; background: rgba(255,255,255,.06); border: 2px solid transparent; }
+  .rc.ok { border-color: rgba(46,229,157,.55); } .rc.no { border-color: rgba(255,90,110,.45); }
+  .rc .im { aspect-ratio: 2 / 3; background: linear-gradient(160deg, var(--nam3), var(--nam)); display: grid; place-items: center; font-size: 34px; }
+  .rc .im img { width: 100%; height: 100%; object-fit: cover; }
+  .rc div.t { padding: 7px 9px; font-size: 12px; font-weight: 800; line-height: 1.25; }
+  .rc div.t small { display: block; color: var(--muted); font-weight: 700; }
+  .podium { display: grid; gap: 8px; max-width: 480px; margin: 18px auto; }
+  .podium div { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 18px; background: rgba(255,255,255,.07); font-weight: 900; font-size: 18px; }
+  .podium div:first-child { background: linear-gradient(135deg, rgba(255,194,74,.3), rgba(255,107,26,.22)); }
+  .podium .sc { margin-left: auto; color: var(--yellow); }
+  canvas#fx { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+  .toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%) translateY(-20px); opacity: 0; z-index: 70; padding: 12px 20px; border-radius: 16px; background: var(--nam); color: #fff; border: 1px solid rgba(255,107,26,.5); font-weight: 800; transition: all .25s; pointer-events: none; box-shadow: 0 20px 40px -18px #000; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  @media (max-width: 1100px) { body.playing .tcouple .full { display: none; } body.playing .tcouple .short { display: inline; } }
+  @media (max-width: 760px) {
+    .top { padding: 10px 12px; gap: 8px; }
+    .logo.wed > div { display: none; }
+    .tcouple { display: block; position: static; transform: none; text-align: left; flex: 1; min-width: 0; }
+    .tcouple b { font-size: 17px; display: block; overflow: hidden; text-overflow: ellipsis; }
+    .tcouple .full { display: none; } .tcouple .short { display: inline; }
+    .top .pill { padding: 0 11px; } .top .pill .lbl { display: none; }
+    .modes { grid-template-columns: 1fr; }
+    .how { grid-template-columns: 1fr 1fr; }
+    .rv { grid-template-columns: 1fr; }
+    .poster { max-width: 240px; margin: 0 auto; width: 100%; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .choices { grid-template-columns: 1fr; }
+    .logo small { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="rail"><div id="railfill"></div></div>
+<div class="float-bg" id="floatBg"></div>
+<header class="top">
+  <div class="logo" id="logo"><div class="ic">🍿</div><div><small id="logoK">NAM · PLAY</small><b>Emoji Cinema</b></div></div>
+  <div class="tcouple hidden" id="tCouple"></div>
+  <div class="sp"></div>
+  <button class="pill" id="bSound" title="Sound on / off (M)">🔊 Sound</button>
+  <button class="pill hidden" id="bHome" title="Back to the menu">🏠<span class="lbl"> Menu</span></button>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section id="home">
+    <div class="hero">
+      <div class="eyebrow" id="heroK">Movie night · 137 films · 8 genres</div>
+      <div class="couple hidden" id="couple"></div>
+      <h1><span class="grad">Guess the Movie</span><br>from Emojis 🎬</h1>
+      <p>Look at the emojis. No idea? Wait — a new clue pops up every <b>10 seconds</b>. The faster you guess, the more points you get!</p>
+      <div class="marquee"><div id="marquee"></div></div>
+    </div>
+    <div class="panel">
+      <div class="sec-t">1 · How do you want to play?</div>
+      <div class="modes" id="modes">
+        <button class="mode on" data-m="classic"><div class="e">🎯</div><b>Classic</b><span>Type your guess. Small typos are OK — we're nice like that.</span></button>
+        <button class="mode" data-m="easy"><div class="e">🧒</div><b>Easy</b><span>Pick from 4 choices. Perfect for kids (and sleepy grown-ups).</span></button>
+        <button class="mode" data-m="party"><div class="e">🎉</div><b>Party</b><span>Teams shout their answers — the host taps who got it first.</span></button>
+      </div>
+      <div id="teamBox" class="hidden">
+        <div class="sec-t">Teams</div>
+        <div class="teams" id="teams"></div>
+        <div class="row" style="margin-top:8px"><button class="ghost" id="addTeam">＋ Add team</button><span style="color:var(--muted);font-size:13px">2 – 6 teams · tap the emoji to change it</span></div>
+      </div>
+      <div class="sec-t">2 · Pick your movies</div>
+      <div class="chips" id="cats"></div>
+      <div class="sec-t">3 · How many?</div>
+      <div class="row">
+        <div class="seg" id="rounds"><button data-n="5">5</button><button data-n="10" class="on">10</button><button data-n="20">20</button><button data-n="0">All of them</button></div>
+        <span style="color:var(--muted);font-size:13px" id="poolInfo"></span>
+      </div>
+      <button class="big" id="start">🍿 Start the show</button>
+      <button class="daily" id="daily"><div class="e">📅</div><div><b>Daily 5</b><span id="dailyTxt">The same 5 movies for everyone today — challenge your friends!</span></div></button>
+      <div class="bests" id="bests"></div>
+      <div class="how">
+        <div><span class="n">👀</span><b>Look</b>The emojis tell the story. No clue yet!</div>
+        <div><span class="n">⏱️</span><b>Every 10 s</b>A new clue appears — up to 5 clues.</div>
+        <div><span class="n">💯</span><b>Be quick</b>100 points with no clue, down to 10 with all five.</div>
+        <div><span class="n">🔥</span><b>Streaks</b>Guess in a row for bonus points. Keys: Enter · Space = next clue · P = pause.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden">
+    <div class="hud" id="hud"></div>
+    <div class="stage" id="stage">
+      <div class="paused hidden" id="paused">⏸ Paused — press P or tap to continue</div>
+      <span class="catchip" id="gCat"></span>
+      <div class="emojis" id="gEmoji"></div>
+      <div class="timer">
+        <div class="tbar"><i id="tFill"></i></div>
+        <div class="tlab"><span id="tTxt">Next clue in 10s</span><span class="worth" id="tWorth">Worth 100 pts</span></div>
+        <div class="dots" id="dots"></div>
+      </div>
+      <div class="clues" id="clues"></div>
+      <div id="ansClassic" class="answer"><input id="guess" placeholder="Type the movie title…" autocomplete="off" spellcheck="false" aria-label="Your guess"><button class="go" id="bGuess">Guess!</button></div>
+      <div id="ansEasy" class="choices hidden"></div>
+      <div id="ansParty" class="party hidden"><div class="hint">🗣️ Everybody shout! Host: tap the team that got it first.</div><div class="who" id="who"></div></div>
+      <div class="feedback" id="fb"></div>
+      <div class="tools">
+        <button id="bClue">💡 Next clue now <span class="kbd">Space</span></button>
+        <button id="bPause">⏸ Pause <span class="kbd">P</span></button>
+        <button id="bGive">🏳️ Show answer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- END -->
+  <section id="end" class="hidden"></section>
+</main>
+
+<div class="ov hidden" id="ov"></div>
+<canvas id="fx"></canvas>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ═════════════════════════════════════════════════════════════════════════════
+   EMOJI CINEMA — guess the movie from emojis. A clue every 10 s (5 clues), then
+   the answer with the poster (Wikipedia page image, loaded when the answer shows).
+   ═════════════════════════════════════════════════════════════════════════════ */
+/* 💍 Made for the wedding of Michelle Anne Perez & Arvin Padua — set WEDDING = null for the normal game */
+const WEDDING = { bride: 'Michelle Anne', groom: 'Arvin', full: 'Michelle Anne Perez & Arvin Padua', couple: 'Michelle Anne & Arvin' };
+const CATS = {
+  pixar:   { n: 'Disney & Pixar', e: '🏰', c: '#4db8ff' },
+  ani:     { n: 'Animation World', e: '🎨', c: '#ff8a3d' },
+  hero:    { n: 'Superheroes', e: '🦸', c: '#ff4d6d' },
+  magic:   { n: 'Fantasy & Magic', e: '🪄', c: '#a888ff' },
+  scifi:   { n: 'Sci-Fi & Space', e: '🚀', c: '#25d0a0' },
+  action:  { n: 'Action & Adventure', e: '🗺️', c: '#ffc24a' },
+  classic: { n: 'Classics & Musicals', e: '🎞️', c: '#ff6b9a' },
+  love:    { n: 'Love & Weddings', e: '💍', c: '#ff8fb8' },
+  family:  { n: 'Family & Holiday', e: '🎄', c: '#7ee36b' },
+};
+// [emojis, title, year, category, wikipedia page, [5 clues, vague → obvious], aliases]
+const RAW = [
+  // ── Disney & Pixar ──
+  ['🐠🔍👨‍👦🌊', 'Finding Nemo', 2003, 'pixar', 'Finding_Nemo', ['An ocean adventure', 'A worried dad crosses the whole sea', 'His new friend forgets everything in seconds', 'His son has a small "lucky fin"', 'Just keep swimming! 🐟']],
+  ['🤠🚀🧸', 'Toy Story', 1995, 'pixar', 'Toy_Story', ['Toys come alive when nobody is looking', 'A cowboy feels replaced', 'The new toy thinks he is a real space ranger', 'To infinity… and beyond!', 'Woody and Buzz Lightyear']],
+  ['❄️👸👸⛄', 'Frozen', 2013, 'pixar', 'Frozen_(2013_film)', ['Two royal sisters', 'One of them has icy powers', 'A snowman who loves warm hugs', 'Let it go! 🎶', 'Elsa and Anna of Arendelle']],
+  ['🦁👑🌅', 'The Lion King', 1994, 'pixar', 'The_Lion_King', ['Set on the African savanna', 'A young prince loses his father', 'His evil uncle takes the throne', 'Hakuna Matata!', 'Simba, Mufasa and Scar']],
+  ['🎈🏠👴👦', 'Up', 2009, 'pixar', 'Up_(2009_film)', ['A grumpy old man', 'A boy scout tags along by accident', 'A house that flies', 'Thousands of balloons', 'Carl, Russell and Dug the talking dog']],
+  ['🐀👨‍🍳🍲🗼', 'Ratatouille', 2007, 'pixar', 'Ratatouille_(film)', ['Set in Paris', 'Someone with a great sense of smell', 'A rat who wants to be a chef', 'He steers a boy by pulling his hair', 'Remy cooks a famous vegetable dish']],
+  ['🤖🌱💚🚀', 'WALL-E', 2008, 'pixar', 'WALL-E', ['Earth is covered in trash', 'A lonely robot keeps on cleaning', 'He falls for a sleek white robot', 'All the humans live on a spaceship', 'EVE and WALL·E'], ['walle', 'wall e']],
+  ['🧠😀😢😡😱🤢', 'Inside Out', 2015, 'pixar', 'Inside_Out_(2015_film)', ['It happens inside someone’s head', 'An 11-year-old girl moves to a new city', 'Feelings are the main characters', 'Joy and Sadness get lost', 'Riley’s emotions']],
+  ['👹👧🚪⚡', 'Monsters, Inc.', 2001, 'pixar', 'Monsters,_Inc.', ['Monsters go to work at a factory', 'They collect children’s screams', 'A little girl sneaks into their world', 'Mike and Sulley', 'Kitty! Boo!'], ['monsters inc']],
+  ['🏎️⚡🏁', 'Cars', 2006, 'pixar', 'Cars_(film)', ['A racing star gets stuck in a tiny town', 'The town is on Route 66', 'His best friend is a rusty tow truck', 'Ka-chow!', 'Lightning McQueen and Mater']],
+  ['🦸‍♂️👨‍👩‍👧‍👦💥', 'The Incredibles', 2004, 'pixar', 'The_Incredibles', ['A family with a secret', 'Dad misses his glory days', 'Mom can stretch like rubber', 'No capes!', 'Mr. Incredible and Elastigirl']],
+  ['💀🎸🌼🕯️', 'Coco', 2017, 'pixar', 'Coco_(2017_film)', ['A boy who loves music', 'Set on Día de los Muertos', 'He crosses into the Land of the Dead', 'Remember me 🎶', 'Miguel and his great-great-grandfather']],
+  ['🧞‍♂️🪔🐒🕌', 'Aladdin', 1992, 'pixar', 'Aladdin_(1992_Disney_film)', ['A street boy in Agrabah', 'A magic lamp', 'Three wishes', 'A whole new world 🎶', 'The Genie and a monkey named Abu']],
+  ['🧜‍♀️🦀🎶🔱', 'The Little Mermaid', 1989, 'pixar', 'The_Little_Mermaid_(1989_film)', ['Under the sea', 'A princess wants to be human', 'A sea witch takes her voice', 'Her friend is a crab named Sebastian', 'Ariel']],
+  ['🌹📚👹🕰️', 'Beauty and the Beast', 1991, 'pixar', 'Beauty_and_the_Beast_(1991_film)', ['A cursed castle', 'A girl who loves books', 'A talking candle and a talking clock', 'A magic rose losing its petals', 'Belle']],
+  ['🌊🛶🐓🌺', 'Moana', 2016, 'pixar', 'Moana_(2016_film)', ['A Pacific island adventure', 'The ocean chooses a chief’s daughter', 'A shapeshifting demigod with tattoos', 'A very silly chicken named Heihei', 'How far I’ll go 🎶']],
+  ['🐰🦊🚓🏙️', 'Zootopia', 2016, 'pixar', 'Zootopia', ['A city run by animals', 'A bunny becomes a police officer', 'She teams up with a sly fox', 'The DMV is run by sloths', 'Judy Hopps and Nick Wilde'], ['zootropolis']],
+  ['🏰💇‍♀️🏮🍳', 'Tangled', 2010, 'pixar', 'Tangled', ['A girl locked in a tower', 'Super long magic hair', 'Floating lanterns on her birthday', 'A frying pan is her weapon', 'Rapunzel']],
+  ['🐘👂🎪🪶', 'Dumbo', 1941, 'pixar', 'Dumbo', ['The circus', 'A baby elephant is teased', 'His best friend is a mouse', 'He learns to fly', 'Those enormous ears!']],
+  ['🐶🐕🍝🌙', 'Lady and the Tramp', 1955, 'pixar', 'Lady_and_the_Tramp', ['Two dogs from different worlds', 'A cocker spaniel meets a stray', 'A romantic dinner behind a restaurant', 'They share one noodle', 'Bella Notte 🎶']],
+  ['🐶🖤🤍🧥', '101 Dalmatians', 1961, 'pixar', 'One_Hundred_and_One_Dalmatians', ['Lots and lots of puppies', 'A villain wants a fur coat', 'Spotted dogs', 'Cruella de Vil', 'Pongo and Perdita'], ['one hundred and one dalmatians', '101 dalmations']],
+  ['🧚‍♀️👦⏰🐊', 'Peter Pan', 1953, 'pixar', 'Peter_Pan_(1953_film)', ['A boy who never grows up', 'Neverland', 'Fairy dust lets you fly', 'A crocodile that goes tick-tock', 'Captain Hook and Tinker Bell']],
+  ['🍎👸⛏️🪞', 'Snow White and the Seven Dwarfs', 1937, 'pixar', 'Snow_White_and_the_Seven_Dwarfs_(1937_film)', ['Disney’s very first full-length film', 'Mirror, mirror on the wall', 'A jealous queen', 'Seven little miners', 'A poisoned apple'], ['snow white']],
+  ['👠🎃🕛👸', 'Cinderella', 1950, 'pixar', 'Cinderella_(1950_film)', ['A kind girl with mean stepsisters', 'A fairy godmother', 'Bibbidi-bobbidi-boo!', 'Leave the ball by midnight', 'A glass slipper']],
+  ['🐉🗡️👧🏯', 'Mulan', 1998, 'pixar', 'Mulan_(1998_film)', ['Ancient China', 'A girl takes her father’s place', 'She disguises herself as a soldier', 'A tiny dragon named Mushu', 'I’ll make a man out of you 🎶']],
+  ['🐜🎪🦗🍂', 'A Bug’s Life', 1998, 'pixar', 'A_Bug%27s_Life', ['Insects', 'An inventive little ant', 'Grasshoppers bully the colony', 'He hires circus bugs thinking they are warriors', 'Flik'], ['a bugs life', 'bugs life']],
+  ['🦋🏠🕯️🇨🇴', 'Encanto', 2021, 'pixar', 'Encanto_(film)', ['A magical family in Colombia', 'Everyone gets a special gift — except one', 'Their house is alive', 'We don’t talk about Bruno 🎶', 'Mirabel Madrigal']],
+  ['🔥💧🏙️💕', 'Elemental', 2023, 'pixar', 'Elemental_(2023_film)', ['A city where the elements live', 'A hot-tempered young woman', 'She meets a very emotional, watery guy', 'Fire and water can’t touch… right?', 'Ember and Wade']],
+  ['🤖🦸‍♂️🍙🎈', 'Big Hero 6', 2014, 'pixar', 'Big_Hero_6_(film)', ['A boy genius', 'A huggable health-care robot', 'The city of San Fransokyo', 'Tiny microbots', 'Baymax']],
+  ['🕹️👊🍬🏁', 'Wreck-It Ralph', 2012, 'pixar', 'Wreck-It_Ralph', ['Video-game characters', 'A bad guy wants to be a hero', 'A racing world made of candy', 'A glitchy little racer', 'I’m gonna wreck it!'], ['wreck it ralph']],
+  ['👩‍🦰🏹🐻🏴', 'Brave', 2012, 'pixar', 'Brave_(2012_film)', ['Set in Scotland', 'A princess who is great at archery', 'She refuses to get married', 'A spell turns her mom into a bear', 'Merida']],
+  ['🐼❤️🎤🇨🇦', 'Turning Red', 2022, 'pixar', 'Turning_Red', ['Toronto, 2002', 'A 13-year-old girl', 'She turns into a giant fluffy animal when emotional', 'Her favourite boy band is 4*Town', 'Mei Lee']],
+  ['🎷👻🌌🎹', 'Soul', 2020, 'pixar', 'Soul_(2020_film)', ['A music teacher dreams of playing jazz', 'He falls into a hole on his big day', 'The Great Before', 'A grumpy soul called 22', 'Joe Gardner']],
+  ['🐟👦🛵🇮🇹', 'Luca', 2021, 'pixar', 'Luca_(2021_film)', ['An Italian seaside town', 'Sea monsters look human on dry land', 'Two best friends', 'They dream of owning a Vespa', 'Silenzio, Bruno!']],
+  ['🐸💋👑🎺', 'The Princess and the Frog', 2009, 'pixar', 'The_Princess_and_the_Frog', ['New Orleans', 'A waitress dreams of her own restaurant', 'A kiss goes wrong', 'A trumpet-playing alligator', 'Tiana']],
+  ['🐒🌳🧔‍♂️🌿', 'Tarzan', 1999, 'pixar', 'Tarzan_(1999_film)', ['Deep in the jungle', 'A baby raised by gorillas', 'He swings on vines', 'Jane comes to study the apes', 'You’ll be in my heart 🎶']],
+  ['👽🌺🏄‍♀️💙', 'Lilo & Stitch', 2002, 'pixar', 'Lilo_%26_Stitch', ['Hawaii', 'A lonely girl adopts a "dog"', 'He is actually Experiment 626', 'Ohana means family', 'Blue, fluffy and naughty'], ['lilo and stitch']],
+  ['🪵👦🤥🦗', 'Pinocchio', 1940, 'pixar', 'Pinocchio_(1940_film)', ['A woodcarver makes a wish', 'A puppet comes to life', 'A cricket is his conscience', 'His nose grows when he lies', 'He wants to be a real boy']],
+  // ── Animation World ──
+  ['🐼🥋🥟🐉', 'Kung Fu Panda', 2008, 'ani', 'Kung_Fu_Panda_(film)', ['Ancient China', 'His dad runs a noodle shop', 'A clumsy chosen one', 'The Furious Five', 'Po, the Dragon Warrior']],
+  ['👹🧅🫏🏰', 'Shrek', 2001, 'ani', 'Shrek', ['A muddy swamp', 'An ogre who wants to be left alone', 'A very talkative donkey', 'Ogres are like onions', 'Rescue Princess Fiona']],
+  ['🐉👦🔥🛡️', 'How to Train Your Dragon', 2010, 'ani', 'How_to_Train_Your_Dragon_(2010_film)', ['Vikings', 'A teen who is bad at fighting', 'He befriends what his village hunts', 'A Night Fury', 'Hiccup and Toothless']],
+  ['🦓🦁🦒🦛🏝️', 'Madagascar', 2005, 'ani', 'Madagascar_(2005_film)', ['New York zoo animals', 'They escape and get shipwrecked', 'Penguins with a secret plan', 'I like to move it, move it 🎶', 'Alex, Marty, Melman and Gloria']],
+  ['🍌👀💛🌙', 'Despicable Me', 2010, 'ani', 'Despicable_Me_(film)', ['A supervillain', 'He plans to steal the Moon', 'He adopts three little girls', 'Small yellow helpers in overalls', 'Gru and the Minions']],
+  ['🐿️🌰🧊🦣', 'Ice Age', 2002, 'ani', 'Ice_Age_(2002_film)', ['Prehistoric times', 'A mammoth, a sloth and a sabre-tooth tiger', 'They return a human baby', 'A squirrel forever chasing one acorn', 'Manny, Sid and Diego']],
+  ['🐉🛁👧🏮', 'Spirited Away', 2001, 'ani', 'Spirited_Away', ['A Japanese anime by Studio Ghibli', 'A girl’s parents turn into pigs', 'A bathhouse for spirits', 'A silent spirit called No-Face', 'Chihiro']],
+  ['🌳🐾😺🚌', 'My Neighbor Totoro', 1988, 'ani', 'My_Neighbor_Totoro', ['Studio Ghibli', 'Two sisters move to the countryside', 'A giant fluffy forest spirit', 'A bus that is also a cat', 'Totoro'], ['totoro']],
+  ['🧱👷‍♂️🎉🏙️', 'The Lego Movie', 2014, 'ani', 'The_Lego_Movie', ['A world made of bricks', 'An ordinary construction worker', 'He is called "the Special"', 'Everything is awesome! 🎶', 'Emmet'], ['lego movie']],
+  ['🐦🔴😠🐷', 'The Angry Birds Movie', 2016, 'ani', 'The_Angry_Birds_Movie', ['Based on a mobile game', 'Birds that can’t fly live on an island', 'Green pigs arrive by boat', 'A giant slingshot', 'Red, Chuck and Bomb'], ['angry birds', 'angry birds movie']],
+  ['🍄👨‍🔧🐢👸', 'The Super Mario Bros. Movie', 2023, 'ani', 'The_Super_Mario_Bros._Movie', ['Based on a famous video game', 'Two plumbers from Brooklyn', 'A green warp pipe', 'The Mushroom Kingdom', 'Mario and Luigi vs. Bowser'], ['super mario', 'super mario bros', 'mario', 'super mario bros movie']],
+  ['🐟👦🌊🍖', 'Ponyo', 2008, 'ani', 'Ponyo', ['Studio Ghibli', 'A boy finds a goldfish', 'She wants to become human', 'She LOVES ham', 'Sōsuke and the fish girl']],
+  ['🐨🎤🐷🦍', 'Sing', 2016, 'ani', 'Sing_(2016_American_film)', ['Animals with big dreams', 'A koala runs a theatre', 'A singing competition', 'A gorilla, a pig and a porcupine', 'Buster Moon']],
+  ['🐶🐱🐰🏙️', 'The Secret Life of Pets', 2016, 'ani', 'The_Secret_Life_of_Pets', ['What pets do when their owners leave', 'A little terrier named Max', 'A big new dog moves in', 'A bunny leads a gang of lost pets', 'New York City pets'], ['secret life of pets']],
+  ['🦊🐔🌳🎩', 'Fantastic Mr. Fox', 2009, 'ani', 'Fantastic_Mr._Fox_(film)', ['Stop-motion animation', 'Based on a Roald Dahl book', 'A fox steals from three farmers', 'Boggis, Bunce and Bean', 'Mr. Fox'], ['fantastic mr fox']],
+  ['🎃🎄💀🎅', 'The Nightmare Before Christmas', 1993, 'ani', 'The_Nightmare_Before_Christmas', ['Stop-motion animation', 'Halloween Town', 'Its king discovers a new holiday', 'He kidnaps Sandy Claws', 'Jack Skellington'], ['nightmare before christmas']],
+  ['🗝️🚪👀🧵', 'Coraline', 2009, 'ani', 'Coraline_(film)', ['Stop-motion animation', 'A girl moves into an old house', 'A tiny hidden door', 'An "Other Mother"', 'Buttons instead of eyes']],
+  ['🌧️🍔🍝🌪️', 'Cloudy with a Chance of Meatballs', 2009, 'ani', 'Cloudy_with_a_Chance_of_Meatballs_(film)', ['A young inventor', 'His machine turns water into food', 'The weather is made of food', 'A spaghetti tornado', 'Flint Lockwood'], ['cloudy with a chance of meatballs']],
+  ['🚂❄️🎅🔔', 'The Polar Express', 2004, 'ani', 'The_Polar_Express_(film)', ['Christmas Eve', 'A boy starts to doubt Santa', 'A train stops outside his house', 'Hot chocolate on board', 'A bell only believers can hear'], ['polar express']],
+  // ── Superheroes ──
+  ['🕷️🕸️🏙️📸', 'Spider-Man', 2002, 'hero', 'Spider-Man_(2002_film)', ['A shy teenager in New York', 'A bite from a special bug', 'With great power comes great responsibility', 'The Green Goblin', 'Peter Parker'], ['spiderman', 'spider man']],
+  ['🦇🃏🌃', 'The Dark Knight', 2008, 'hero', 'The_Dark_Knight', ['Gotham City', 'A billionaire vigilante', 'A chaotic villain with face paint', 'Why so serious?', 'Batman vs. the Joker'], ['dark knight', 'batman']],
+  ['⚡🔨👱‍♂️🌈', 'Thor', 2011, 'hero', 'Thor_(film)', ['A Norse god', 'He is banished to Earth', 'Only the worthy can lift it', 'Asgard and his brother Loki', 'God of Thunder']],
+  ['🛡️🇺🇸❄️💪', 'Captain America: The First Avenger', 2011, 'hero', 'Captain_America:_The_First_Avenger', ['World War II', 'A skinny kid with a big heart', 'Super-soldier serum', 'Frozen in ice for decades', 'Steve Rogers'], ['captain america', 'the first avenger']],
+  ['🤖🔴🟡🔧', 'Iron Man', 2008, 'hero', 'Iron_Man_(2008_film)', ['A billionaire inventor', 'Kidnapped and held in a cave', 'He builds a suit of armour', '"I am ___ ___."', 'Tony Stark'], ['ironman']],
+  ['🧤💎♾️🫰', 'Avengers: Infinity War', 2018, 'hero', 'Avengers:_Infinity_War', ['Dozens of heroes team up', 'Six powerful stones', 'A purple titan', 'A snap of the fingers', 'Thanos'], ['infinity war']],
+  ['🦝🌳🚀🎧', 'Guardians of the Galaxy', 2014, 'hero', 'Guardians_of_the_Galaxy_(film)', ['Space outlaws team up', 'A cassette mixtape', 'A talking raccoon', 'I am Groot', 'Star-Lord']],
+  ['🐆👑🌍💜', 'Black Panther', 2018, 'hero', 'Black_Panther_(film)', ['A hidden African nation', 'A new king', 'Vibranium', 'Wakanda forever!', 'T’Challa']],
+  ['🦸‍♀️⚔️🛡️🌍', 'Wonder Woman', 2017, 'hero', 'Wonder_Woman_(2017_film)', ['An island of warrior women', 'World War I', 'A golden lasso of truth', 'A princess from Themyscira', 'Diana Prince']],
+  ['🐜👨🔬📏', 'Ant-Man', 2015, 'hero', 'Ant-Man_(film)', ['A former thief', 'A special suit', 'He can shrink to tiny size', 'He talks to insects', 'Scott Lang'], ['antman', 'ant man']],
+  ['🧙‍♂️🌀🪄👐', 'Doctor Strange', 2016, 'hero', 'Doctor_Strange_(2016_film)', ['A brilliant surgeon hurts his hands', 'He travels to Nepal', 'The mystic arts', 'A cape with a mind of its own', 'Sorcerer Supreme'], ['dr strange']],
+  ['🕷️🕸️🎨🎧', 'Spider-Man: Into the Spider-Verse', 2018, 'hero', 'Spider-Man:_Into_the_Spider-Verse', ['Animated', 'A Brooklyn teen with a spray can', 'Many versions of one hero meet', 'One of them is a pig', 'Miles Morales'], ['into the spider-verse', 'into the spiderverse', 'spiderverse', 'spider verse']],
+  ['🦸‍♂️🌍👓🔴', 'Superman', 1978, 'hero', 'Superman_(1978_film)', ['A baby sent from a dying planet', 'Raised on a Kansas farm', 'A reporter with glasses', 'Kryptonite', 'Clark Kent']],
+  ['✈️✨👩‍🚀🐈', 'Captain Marvel', 2019, 'hero', 'Captain_Marvel_(film)', ['The 1990s', 'A pilot who lost her memory', 'Cosmic energy blasts', 'A cat named Goose', 'Carol Danvers']],
+  ['🧬❌🏫🦾', 'X-Men', 2000, 'hero', 'X-Men_(film)', ['Mutants', 'A school for gifted youngsters', 'Metal claws', 'Magneto', 'Professor X and Wolverine'], ['xmen', 'x men']],
+  ['⚡👦➡️🦸', 'Shazam!', 2019, 'hero', 'Shazam!_(film)', ['A foster kid', 'A magic word', 'He turns into a grown-up superhero', 'Philadelphia', 'Billy Batson'], ['shazam']],
+  ['🦸‍♂️🦸‍♀️🗽👾', 'The Avengers', 2012, 'hero', 'The_Avengers_(2012_film)', ['Earth’s mightiest heroes', 'Assemble!', 'An alien invasion of New York', 'Loki leads it', 'Iron Man, Thor, Hulk, Cap…'], ['avengers']],
+  // ── Fantasy & Magic ──
+  ['⚡👓🧙‍♂️🏰', 'Harry Potter and the Sorcerer’s Stone', 2001, 'magic', 'Harry_Potter_and_the_Philosopher%27s_Stone_(film)', ['A boy lives under the stairs', 'His letter arrives by owl', 'A school of magic', 'A lightning-shaped scar', 'Hogwarts'], ['harry potter', 'harry potter and the sorcerers stone', 'harry potter and the philosophers stone', 'sorcerers stone', 'philosophers stone']],
+  ['💍🌋🧙🧝', 'The Lord of the Rings: The Fellowship of the Ring', 2001, 'magic', 'The_Lord_of_the_Rings:_The_Fellowship_of_the_Ring', ['Middle-earth', 'A small hero with hairy feet', 'A wizard named Gandalf', 'One to rule them all', 'Frodo must destroy it'], ['lord of the rings', 'the lord of the rings', 'fellowship of the ring', 'the fellowship of the ring', 'lotr']],
+  ['🦁🧙‍♀️🚪❄️', 'The Chronicles of Narnia: The Lion, the Witch and the Wardrobe', 2005, 'magic', 'The_Chronicles_of_Narnia:_The_Lion,_the_Witch_and_the_Wardrobe', ['Four siblings', 'A magic wardrobe', 'Always winter, but never Christmas', 'A great talking lion', 'Narnia'], ['narnia', 'the lion the witch and the wardrobe', 'lion witch and the wardrobe', 'chronicles of narnia']],
+  ['🌪️👠🦁🤖', 'The Wizard of Oz', 1939, 'magic', 'The_Wizard_of_Oz', ['A Kansas farm girl', 'A tornado', 'Follow the yellow brick road', 'Ruby slippers', 'There’s no place like home'], ['wizard of oz']],
+  ['🍫🏭🎟️🎩', 'Charlie and the Chocolate Factory', 2005, 'magic', 'Charlie_and_the_Chocolate_Factory_(film)', ['A poor but kind boy', 'Five golden tickets', 'Oompa-Loompas', 'A chocolate river', 'Willy Wonka'], ['willy wonka', 'willy wonka and the chocolate factory', 'charlie and the chocolate factory']],
+  ['🐇⏰🎩🍵', 'Alice in Wonderland', 1951, 'magic', 'Alice_in_Wonderland_(1951_film)', ['A girl follows a hurried animal', 'Down a rabbit hole', 'A mad tea party', 'Off with their heads!', 'Alice']],
+  ['🧚‍♀️🖤🌹😴', 'Maleficent', 2014, 'magic', 'Maleficent_(film)', ['A fairy is betrayed', 'A curse on a baby princess', 'A spinning wheel', 'Big black horns', 'Sleeping Beauty — told by the villain']],
+  ['🧙🐉💰💍', 'The Hobbit: An Unexpected Journey', 2012, 'magic', 'The_Hobbit:_An_Unexpected_Journey', ['A prequel', '13 dwarves arrive for dinner', 'A riddle game in a dark cave', 'My precious…', 'Bilbo Baggins'], ['the hobbit', 'hobbit', 'an unexpected journey']],
+  ['👦📖🐉🌀', 'The NeverEnding Story', 1984, 'magic', 'The_NeverEnding_Story_(film)', ['A boy hides in a school attic', 'He reads a magical book', 'A flying luckdragon', 'The Nothing', 'Falkor and Atreyu'], ['neverending story', 'the never ending story', 'never ending story']],
+  ['🎲🦏🌴🥁', 'Jumanji', 1995, 'magic', 'Jumanji_(film)', ['A board game', 'Roll the dice…', 'Jungle animals stampede through town', 'A man trapped inside for 26 years', 'Robin Williams']],
+  ['🧳🦡✨🗽', 'Fantastic Beasts and Where to Find Them', 2016, 'magic', 'Fantastic_Beasts_and_Where_to_Find_Them_(film)', ['1920s New York', 'A magical suitcase', 'A creature that steals shiny things', 'The wizarding world', 'Newt Scamander'], ['fantastic beasts']],
+  ['🧙‍♀️🧙‍♀️🧙‍♀️🕯️🐈‍⬛', 'Hocus Pocus', 1993, 'magic', 'Hocus_Pocus_(1993_film)', ['Salem', 'Halloween night', 'Three witch sisters come back', 'A Black Flame Candle', 'A talking black cat']],
+  // ── Sci-Fi & Space ──
+  ['⭐⚔️🌌🤖', 'Star Wars', 1977, 'scifi', 'Star_Wars_(film)', ['A long time ago, in a galaxy far, far away…', 'A farm boy on a desert planet', 'A princess’s secret message', 'May the Force be with you', 'Luke Skywalker vs. Darth Vader'], ['a new hope', 'star wars a new hope', 'star wars episode iv']],
+  ['👽🚲🌕☎️', 'E.T. the Extra-Terrestrial', 1982, 'scifi', 'E.T._the_Extra-Terrestrial', ['A boy finds a visitor in his backyard', 'A trail of candy', 'A glowing finger', 'Bikes fly across the Moon', 'Phone home'], ['et', 'e t', 'e.t.', 'et the extra terrestrial']],
+  ['🦖🦕🏝️🚙', 'Jurassic Park', 1993, 'scifi', 'Jurassic_Park_(film)', ['An island theme park', 'Mosquito DNA in amber', 'Life finds a way', 'T. rex!', 'Dinosaurs are back']],
+  ['🚗⏰⚡🛹', 'Back to the Future', 1985, 'scifi', 'Back_to_the_Future', ['A teen and an eccentric scientist', 'A DeLorean', '88 miles per hour', 'He meets his parents as teenagers', 'Marty McFly and Doc Brown']],
+  ['🌽🌌⏳🚀', 'Interstellar', 2014, 'scifi', 'Interstellar_(film)', ['Earth’s crops are failing', 'A pilot leaves his kids behind', 'A wormhole near Saturn', 'One hour there is seven years here', 'Murph’s bookshelf']],
+  ['👨‍🚀🥔🔴🪐', 'The Martian', 2015, 'scifi', 'The_Martian_(film)', ['An astronaut is left behind', 'He grows food in his base', 'Only disco music to listen to', 'He has to science his way out', 'Stranded on Mars'], ['martian']],
+  ['🤖🚗➡️🤖', 'Transformers', 2007, 'scifi', 'Transformers_(film)', ['Robots in disguise', 'A teen buys his first car', 'Autobots vs. Decepticons', 'The AllSpark', 'Optimus Prime']],
+  ['💙🌳🪐🏹', 'Avatar', 2009, 'scifi', 'Avatar_(2009_film)', ['A distant moon called Pandora', 'A soldier in a wheelchair', 'Tall blue aliens', 'A giant sacred tree', 'The Na’vi']],
+  ['🕶️👽🔫🖤', 'Men in Black', 1997, 'scifi', 'Men_in_Black_(1997_film)', ['A secret agency', 'Black suits and sunglasses', 'Aliens live among us', 'A flashy device erases memories', 'Agent J and Agent K'], ['mib']],
+  ['🛸🌍💥🇺🇸', 'Independence Day', 1996, 'scifi', 'Independence_Day_(1996_film)', ['The 4th of July', 'Giant spaceships over cities', 'Aliens blow up the White House', 'A computer virus saves the day', 'Welcome to Earth!']],
+  ['🥽🕹️🥚🏎️', 'Ready Player One', 2018, 'scifi', 'Ready_Player_One_(film)', ['The year 2045', 'Everyone escapes into a virtual world', 'A hidden Easter egg', 'Pop culture everywhere', 'The OASIS']],
+  ['👩‍🚀🛰️🌍😮', 'Gravity', 2013, 'scifi', 'Gravity_(2013_film)', ['Two astronauts', 'Space debris destroys their shuttle', 'Floating alone above Earth', 'Sandra Bullock and George Clooney', 'No sound in space']],
+  // ── Action & Adventure ──
+  ['🏴‍☠️⚓💀🌙', 'Pirates of the Caribbean: The Curse of the Black Pearl', 2003, 'action', 'Pirates_of_the_Caribbean:_The_Curse_of_the_Black_Pearl', ['The Caribbean Sea', 'A cursed crew', 'Cursed Aztec gold', 'Skeletons in the moonlight', 'Captain Jack Sparrow'], ['pirates of the caribbean', 'curse of the black pearl', 'the curse of the black pearl']],
+  ['🤠🐍🗿🪨', 'Raiders of the Lost Ark', 1981, 'action', 'Raiders_of_the_Lost_Ark', ['An archaeologist adventurer', 'A fedora and a whip', 'Snakes… why did it have to be snakes?', 'A giant rolling boulder', 'Indiana Jones'], ['indiana jones', 'indiana jones and the raiders of the lost ark']],
+  ['🦈🏖️🚤🎵', 'Jaws', 1975, 'action', 'Jaws_(film)', ['A beach town', 'Summer vacation', 'Something is in the water', 'You’re gonna need a bigger boat', 'A great white shark']],
+  ['🏎️💨👨‍👨‍👦🔧', 'The Fast and the Furious', 2001, 'action', 'The_Fast_and_the_Furious_(2001_film)', ['Street racing in Los Angeles', 'An undercover cop', 'Family above everything', 'A nitrous boost', 'Dom Toretto'], ['fast and furious', 'fast and the furious', 'fast & furious']],
+  ['🕵️‍♂️📱💣🧗', 'Mission: Impossible', 1996, 'action', 'Mission:_Impossible_(film)', ['A secret spy team', 'This message will self-destruct', 'A famous theme song', 'Hanging from wires above the floor', 'Ethan Hunt'], ['mission impossible']],
+  ['🍸🕵️‍♂️🃏🎰', 'Casino Royale', 2006, 'action', 'Casino_Royale_(2006_film)', ['A British spy', 'A licence to kill', 'A high-stakes poker game', 'Shaken, not stirred', 'Bond. James Bond.'], ['james bond', '007']],
+  ['🏹🔥👧🐦', 'The Hunger Games', 2012, 'action', 'The_Hunger_Games_(film)', ['Twelve districts', 'She volunteers as tribute', 'Bow and arrow', 'May the odds be ever in your favor', 'Katniss Everdeen'], ['hunger games']],
+  ['🚤🐆🌳🌙', 'Jungle Cruise', 2021, 'action', 'Jungle_Cruise_(film)', ['The Amazon river', 'A riverboat captain who loves bad puns', 'A scientist hunts for a magical tree', 'Tears of the Moon', 'Dwayne Johnson and Emily Blunt']],
+  ['🧭🗺️📜💎', 'National Treasure', 2004, 'action', 'National_Treasure_(film)', ['A treasure hunter', 'A secret map on the Declaration of Independence', 'He steals it to protect it', 'A treasure hidden by the Founding Fathers', 'Nicolas Cage']],
+  ['🌪️🐄🚙📡', 'Twister', 1996, 'action', 'Twister_(1996_film)', ['Oklahoma', 'Storm chasers', 'A cow flies past the car', 'A device named Dorothy', 'Tornadoes!']],
+  // ── Classics & Musicals ──
+  ['🚢🧊💑🎻', 'Titanic', 1997, 'classic', 'Titanic_(1997_film)', ['The year 1912', 'A rich girl meets a poor artist', 'An "unsinkable" ship', 'I’m the king of the world!', 'Jack and Rose']],
+  ['🏃‍♂️🍫🪶🦐', 'Forrest Gump', 1994, 'classic', 'Forrest_Gump', ['A man with a kind heart', 'Sitting on a bench at a bus stop', 'Life is like a box of chocolates', 'Run, ___, run!', 'A shrimp boat and ping-pong']],
+  ['🎶👗🏔️🎸', 'The Sound of Music', 1965, 'classic', 'The_Sound_of_Music_(film)', ['Austria', 'A nun becomes a nanny', 'Seven children', 'Do-Re-Mi 🎶', 'The von Trapp family'], ['sound of music']],
+  ['🦍🏙️✈️👱‍♀️', 'King Kong', 1933, 'classic', 'King_Kong_(1933_film)', ['A film crew sails to a mysterious island', 'A giant ape', 'Captured and shown off in New York', 'Climbing the Empire State Building', '’Twas beauty killed the beast']],
+  ['👻🚫🔫🚒', 'Ghostbusters', 1984, 'classic', 'Ghostbusters', ['New York City', 'Paranormal scientists start a business', 'Proton packs', 'Who you gonna call?', 'The Stay Puft Marshmallow Man']],
+  ['🚗💇‍♂️🎶🏫', 'Grease', 1978, 'classic', 'Grease_(film)', ['A 1950s high school', 'A summer romance', 'The T-Birds and the Pink Ladies', 'You’re the one that I want 🎶', 'Danny and Sandy']],
+  ['🥊🏃‍♂️🥩🏆', 'Rocky', 1976, 'classic', 'Rocky', ['A small-time boxer in Philadelphia', 'A shot at the heavyweight title', 'Punching frozen meat', 'Running up the museum steps', 'Adrian!']],
+  ['☂️👩🎩🍬', 'Mary Poppins', 1964, 'classic', 'Mary_Poppins_(film)', ['A magical nanny', 'She arrives by umbrella', 'A spoonful of sugar', 'Supercalifragilisticexpialidocious', 'Chim chim cher-ee']],
+  ['🌧️💃☂️🎤', 'Singin’ in the Rain', 1952, 'classic', 'Singin%27_in_the_Rain', ['Hollywood moves to talking pictures', 'A silent-film star', 'A co-star with a squeaky voice', 'Dancing with an umbrella in a storm', 'Gene Kelly'], ['singin in the rain', 'singing in the rain']],
+  ['🎩🐘🎪🎶', 'The Greatest Showman', 2017, 'classic', 'The_Greatest_Showman', ['A musical', 'P. T. Barnum', 'A circus of unique performers', 'This Is Me 🎶', 'Hugh Jackman'], ['greatest showman']],
+  ['🌃🎹💃⭐', 'La La Land', 2016, 'classic', 'La_La_Land', ['Los Angeles', 'A jazz pianist', 'An actress chasing her dream', 'City of Stars 🎶', 'Ryan Gosling and Emma Stone']],
+  ['💗🏝️🎶👰', 'Mamma Mia!', 2008, 'love', 'Mamma_Mia!_(film)', ['A Greek island', 'A wedding', 'A girl invites three possible dads', 'All ABBA songs', 'Dancing Queen 🎶'], ['mamma mia', 'mama mia']],
+  ['🏝️🏐✈️📦', 'Cast Away', 2000, 'classic', 'Cast_Away', ['A courier company worker', 'A plane crash', 'Stranded on an island', 'His only friend is a volleyball', 'Wilson!'], ['castaway']],
+  // ── Love & Weddings 💍 ──
+  ['👰🇬🇷🍰👨‍👩‍👧‍👦', 'My Big Fat Greek Wedding', 2002, 'love', 'My_Big_Fat_Greek_Wedding', ['A big, loud, loving family', 'She works at her family’s restaurant', 'She falls for a man who isn’t Greek', 'Put some Windex on it!', 'Toula and Ian'], ['big fat greek wedding']],
+  ['💎💍🇸🇬👵', 'Crazy Rich Asians', 2018, 'love', 'Crazy_Rich_Asians_(film)', ['An economics professor from New York', 'Her boyfriend’s family is secretly super rich', 'A trip to Singapore for a wedding', 'A very tough future mother-in-law', 'Rachel Chu and Nick Young']],
+  ['👸🗽🐦🎶', 'Enchanted', 2007, 'love', 'Enchanted_(film)', ['A cartoon princess', 'She is pushed into a well…', '…and lands in real-life New York', 'She cleans with pigeons and rats while singing', 'Giselle']],
+  ['⚔️👸📖💑', 'The Princess Bride', 1987, 'love', 'The_Princess_Bride_(film)', ['A grandpa reads a book to his sick grandson', 'A farm boy and a beautiful girl', 'As you wish', 'Inconceivable!', 'Hello. My name is Inigo Montoya…'], ['princess bride']],
+  ['👗👗👗💐', '27 Dresses', 2008, 'love', '27_Dresses', ['Always the bridesmaid, never the bride', 'She has been to SO many weddings', 'Her sister falls for the man she loves', 'A closet full of bridesmaid dresses', 'Katherine Heigl'], ['twenty seven dresses']],
+  ['👨‍👧💒💸🌭', 'Father of the Bride', 1991, 'love', 'Father_of_the_Bride_(1991_film)', ['A dad who isn’t ready', 'His daughter comes home engaged', 'A very fancy wedding planner named Franck', 'Too many hot-dog buns', 'Steve Martin']],
+  ['📝👩‍💼🇨🇦💍', 'The Proposal', 2009, 'love', 'The_Proposal_(2009_film)', ['A bossy book editor', 'She is about to be sent back to Canada', 'She makes her assistant marry her', 'A family trip to Alaska', 'Sandra Bullock and Ryan Reynolds'], ['proposal']],
+  ['🛶🦢📝💌', 'The Notebook', 2004, 'love', 'The_Notebook', ['An old man reads a story to a woman', 'A summer romance in the 1940s', 'A rowboat among swans', '365 letters', 'Noah and Allie'], ['notebook']],
+  ['💻📩📚💕', 'You’ve Got Mail', 1998, 'love', 'You%27ve_Got_Mail', ['A small bookshop owner', 'Her rival runs a huge bookstore chain', 'They fall in love online without knowing it', 'The sound of an email arriving', 'Tom Hanks and Meg Ryan'], ['youve got mail']],
+  ['🎤💍🎸📼', 'The Wedding Singer', 1998, 'love', 'The_Wedding_Singer', ['He sings at wedding receptions', 'He is left at the altar', 'A waitress is planning her own wedding', 'The 1980s', 'Adam Sandler and Drew Barrymore'], ['wedding singer']],
+  ['🇭🇰💼❤️👋', 'Hello, Love, Goodbye', 2019, 'love', 'Hello,_Love,_Goodbye', ['A Filipino love story', 'Set in Hong Kong', 'Two overseas Filipino workers', 'She dreams of moving to Canada', 'Kathryn Bernardo and Alden Richards'], ['hello love goodbye']],
+  ['💔🔁🏗️💞', 'One More Chance', 2007, 'love', 'One_More_Chance_(2007_film)', ['A Filipino love story', 'Together for five years', 'An engineer and an architect', 'She loved me at my worst…', 'Popoy and Basha']],
+  ['👭👭💒😱', 'Four Sisters and a Wedding', 2013, 'love', 'Four_Sisters_and_a_Wedding', ['A Filipino family comedy', 'Four sisters come home', 'Their youngest brother is getting married', 'They try to stop the wedding', 'Toni, Bea, Angel and Shaina'], ['4 sisters and a wedding']],
+  ['🇯🇵❄️🕶️💛', 'Kita Kita', 2017, 'love', 'Kita_Kita', ['A Filipino romantic comedy', 'Set in Sapporo, Japan', 'A tour guide suddenly loses her sight', 'A cheerful neighbor keeps visiting her', 'Alessandra de Rossi and Empoy Marquez']],
+  // ── Family & Holiday ──
+  ['🏠🎄👦🪤', 'Home Alone', 1990, 'family', 'Home_Alone', ['Christmas time', 'A big family trip to Paris', 'An 8-year-old is left behind', 'Booby traps for burglars', 'Kevin McCallister']],
+  ['🎅🧝‍♂️🍝🍁', 'Elf', 2003, 'family', 'Elf_(film)', ['A human raised at the North Pole', 'He goes to New York to find his dad', 'Spaghetti with maple syrup', 'Smiling’s my favourite!', 'Buddy']],
+  ['🐻🍊🧥🎩', 'Paddington', 2014, 'family', 'Paddington_(film)', ['A bear from Peru', 'He arrives in London', 'A blue coat and a red hat', 'Marmalade sandwiches', 'The Brown family']],
+  ['📚👧🧠🍰', 'Matilda', 1996, 'family', 'Matilda_(1996_film)', ['Based on Roald Dahl', 'A clever girl with rude parents', 'A terrifying headmistress', 'A boy eats a giant chocolate cake', 'She moves things with her mind']],
+  ['👨‍🔬👶🐜🌿', 'Honey, I Shrunk the Kids', 1989, 'family', 'Honey,_I_Shrunk_the_Kids', ['An inventor’s strange machine', 'The kids become tiny', 'The backyard becomes a jungle', 'Riding on an ant', 'Honey…'], ['honey i shrunk the kids']],
+  ['👵🧔📞🎂', 'Mrs. Doubtfire', 1993, 'family', 'Mrs._Doubtfire', ['A divorced dad misses his kids', 'He applies to be their nanny', 'Disguised as an elderly lady', 'Hellooo!', 'Robin Williams'], ['mrs doubtfire']],
+  ['🎒🏫🎸🤘', 'School of Rock', 2003, 'family', 'School_of_Rock', ['A broke musician', 'Pretends to be a substitute teacher', 'Turns the class into a band', 'The Battle of the Bands', 'Jack Black']],
+  ['🎄😈💚🎁', 'How the Grinch Stole Christmas', 2000, 'family', 'How_the_Grinch_Stole_Christmas_(2000_film)', ['Dr. Seuss', 'Whoville', 'A grumpy green creature', 'His heart grows three sizes', 'He steals the holiday'], ['the grinch', 'grinch']],
+  ['🐕🎹🏠💦', 'Beethoven', 1992, 'family', 'Beethoven_(film)', ['A family adopts a puppy', 'He grows HUGE', 'A St. Bernard', 'Named after a composer', 'Slobber everywhere']],
+  ['🦖🏛️🌙🤠', 'Night at the Museum', 2006, 'family', 'Night_at_the_Museum', ['A new night guard', 'The exhibits come alive', 'A T. rex skeleton who plays fetch', 'A tiny cowboy and a tiny Roman', 'The Natural History Museum']],
+  ['⚾🐕🧢🌭', 'The Sandlot', 1993, 'family', 'The_Sandlot', ['Summer of 1962', 'A new kid joins a baseball gang', 'A ball signed by Babe Ruth', 'A giant dog called The Beast', 'You’re killing me, Smalls!'], ['sandlot']],
+  ['🐷🕷️🕸️🌾', 'Charlotte’s Web', 2006, 'family', 'Charlotte%27s_Web_(2006_film)', ['A farm', 'A girl saves a runt piglet', 'A spider becomes his friend', 'Words appear in a web', 'Some Pig!'], ['charlottes web']],
+  ['🐷🐑🐕🚜', 'Babe', 1995, 'family', 'Babe_(film)', ['A sheep farm', 'A little piglet', 'Raised by a sheepdog', 'Herding sheep by asking politely', 'That’ll do, pig']],
+  ['🐭👨‍👩‍👦🚗🐱', 'Stuart Little', 1999, 'family', 'Stuart_Little_(film)', ['A family adopts a son', 'He is a mouse', 'The family cat is very jealous', 'A tiny red sports car', 'Snowbell the cat']],
+  ['👻👧🏚️🤝', 'Casper', 1995, 'family', 'Casper_(film)', ['A spooky mansion', 'Three troublemaking ghost uncles', 'A friendly ghost', 'A girl and her dad move in', 'Christina Ricci']],
+  ['🦔💙💨💍', 'Sonic the Hedgehog', 2020, 'family', 'Sonic_the_Hedgehog_(film)', ['Based on a video game', 'A blue alien hides in a small town', 'He is super, super fast', 'Dr. Robotnik is after him', 'Gotta go fast!'], ['sonic']],
+];
+const MOVIES = RAW.map(([e, t, y, c, w, clues, al], i) => ({ i, e, t, y, c, w, clues, al: al || [] }));
+
+/* ── helpers ─────────────────────────────────────────────────────────────────── */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const shuffle = (a, rnd = Math.random) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const splitEmoji = (s) => (Intl.Segmenter ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)].map((x) => x.segment) : [...s]);
+const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('emojiCinema.' + k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem('emojiCinema.' + k, JSON.stringify(v)); } catch { /* private mode */ } } };
+function toast(t, ms = 2000) { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('show'), ms); }
+
+/* fuzzy answer check: lower-case, no accents / punctuation / leading "the", small typos allowed */
+const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ').replace(/[’'`]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/^(the|a|an) /, '').trim();
+function lev(a, b) { const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let p = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; }
+function judge(guess, m) {
+  const g = norm(guess); if (!g) return 'empty';
+  const names = [m.t, ...m.al, m.t.split(':')[0]].map(norm).filter((x) => x.length >= 2);
+  let best = 99;
+  for (const nm of names) {
+    if (g === nm || g.replace(/ /g, '') === nm.replace(/ /g, '')) return 'ok';
+    const d = lev(g, nm), tol = nm.length <= 4 ? 0 : nm.length <= 8 ? 1 : 2 + Math.floor(nm.length / 14);
+    if (d <= tol) return 'ok';
+    best = Math.min(best, d - tol);
+  }
+  return best <= 2 ? 'close' : 'no';
+}
+
+/* ── posters: Wikipedia page image (CORS-enabled REST API), cached ─────────── */
+const posterCache = {};
+function poster(m) {
+  if (!posterCache[m.w]) posterCache[m.w] = fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + m.w, { headers: { Accept: 'application/json' } })
+    .then((r) => (r.ok ? r.json() : null)).then((j) => (j && (j.thumbnail || j.originalimage) ? (j.originalimage || j.thumbnail).source : null))
+    .then((src) => src && new Promise((res) => { const im = new Image(); im.onload = () => res(src); im.onerror = () => res(null); im.src = src; }))
+    .catch(() => null);
+  return posterCache[m.w];
+}
+
+/* ── sound (Web Audio, no files) ─────────────────────────────────────────────── */
+let AC = null, soundOn = store.get('sound', true);
+function tone(f, d = .12, type = 'sine', v = .08, when = 0) {
+  if (!soundOn) return;
+  try { AC ||= new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime + when, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d + .02); } catch { /* no audio */ }
+}
+const SFX = {
+  clue: () => { tone(520, .09, 'triangle'); tone(780, .12, 'triangle', .07, .08); },
+  tick: () => tone(1200, .04, 'square', .03),
+  ok: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .16, 'triangle', .09, i * .09)),
+  no: () => { tone(220, .18, 'sawtooth', .05); tone(170, .22, 'sawtooth', .05, .12); },
+  close: () => tone(440, .1, 'triangle', .06),
+  reveal: () => [392, 330, 262].forEach((f, i) => tone(f, .18, 'triangle', .07, i * .12)),
+  fan: () => [523, 659, 784, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .18, 'triangle', .08, i * .11)),
+};
+function paintSound() { $('bSound').innerHTML = soundOn ? '🔊<span class="lbl"> Sound</span>' : '🔇<span class="lbl"> Muted</span>'; }
+$('bSound').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); paintSound(); if (soundOn) SFX.clue(); };
+
+/* ── confetti ───────────────────────────────────────────────────────────────── */
+const fx = $('fx'), cx = fx.getContext('2d'); let parts = [], fxOn = false;
+function sizeFx() { fx.width = innerWidth * devicePixelRatio; fx.height = innerHeight * devicePixelRatio; }
+addEventListener('resize', sizeFx); sizeFx();
+function confetti(n = 140, emoji) {
+  const W = fx.width, H = fx.height, cols = ['#ff6b1a', '#ffc24a', '#4db8ff', '#25d0a0', '#a888ff', '#ff4d6d'];
+  for (let i = 0; i < n; i++) parts.push({ x: W / 2 + (Math.random() - .5) * W * .3, y: H * .35, vx: (Math.random() - .5) * 26 * devicePixelRatio, vy: (-Math.random() * 22 - 6) * devicePixelRatio,
+    g: .55 * devicePixelRatio, s: (6 + Math.random() * 8) * devicePixelRatio, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: cols[i % cols.length], e: emoji && i % 6 === 0 ? emoji : null, life: 0 });
+  if (!fxOn) { fxOn = true; requestAnimationFrame(stepFx); }
+}
+function stepFx() {
+  cx.clearRect(0, 0, fx.width, fx.height);
+  parts.forEach((p) => { p.vy += p.g; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++;
+    cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r);
+    if (p.e) { cx.font = `${p.s * 3}px serif`; cx.fillText(p.e, 0, 0); } else { cx.fillStyle = p.c; cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); }
+    cx.restore(); });
+  parts = parts.filter((p) => p.y < fx.height + 40 && p.life < 400);
+  if (parts.length) requestAnimationFrame(stepFx); else { fxOn = false; cx.clearRect(0, 0, fx.width, fx.height); }
+}
+
+/* ── home screen ────────────────────────────────────────────────────────────── */
+const AVATARS = ['👰', '🤵', '💍', '💐', '🥂', '🦄', '🐯', '🐸', '🐙', '🦊', '🐼', '🦖', '🐝', '🐧', '🦁', '🐳', '👾', '🤖', '👽', '🦩', '🐲'];
+const TEAM_COLS = ['#ff6b1a', '#4db8ff', '#ffc24a', '#25d0a0', '#a888ff', '#ff4d6d'];
+const S = { mode: store.get('mode', 'classic'), cats: new Set(store.get('cats', Object.keys(CATS))), rounds: store.get('rounds', 10),
+  teams: store.get(WEDDING ? 'teamsW' : 'teams', WEDDING ? [{ n: 'Team ' + WEDDING.bride, a: '👰' }, { n: 'Team ' + WEDDING.groom, a: '🤵' }] : [{ n: 'Team Popcorn', a: '🍿' }, { n: 'Team Nachos', a: '🌮' }]) };
+const TEAMS_KEY = WEDDING ? 'teamsW' : 'teams';
+function paintHome() {
+  document.querySelectorAll('#modes .mode').forEach((b) => b.classList.toggle('on', b.dataset.m === S.mode));
+  $('teamBox').classList.toggle('hidden', S.mode !== 'party');
+  const cnt = (k) => MOVIES.filter((m) => m.c === k).length;
+  $('cats').innerHTML = `<button class="chip ${S.cats.size === Object.keys(CATS).length ? 'on' : ''}" data-k="*" style="--c:#ffd23f">🎬 Everything <small>${MOVIES.length}</small></button>`
+    + Object.entries(CATS).map(([k, c]) => `<button class="chip ${S.cats.has(k) ? 'on' : ''}" data-k="${k}" style="--c:${c.c}">${c.e} ${esc(c.n)} <small>${cnt(k)}</small></button>`).join('');
+  $('cats').querySelectorAll('.chip').forEach((b) => b.onclick = () => {
+    const k = b.dataset.k, all = Object.keys(CATS);
+    if (k === '*') S.cats = new Set(S.cats.size === all.length ? [] : all);
+    else if (S.cats.has(k)) S.cats.delete(k); else S.cats.add(k);
+    if (!S.cats.size) S.cats = new Set([k === '*' ? 'pixar' : k]);
+    store.set('cats', [...S.cats]); paintHome(); tone(660, .05, 'triangle', .05);
+  });
+  document.querySelectorAll('#rounds button').forEach((b) => b.classList.toggle('on', +b.dataset.n === S.rounds));
+  const pool = MOVIES.filter((m) => S.cats.has(m.c)).length;
+  $('poolInfo').textContent = `${pool} movies in your mix${S.rounds && S.rounds > pool ? ` — you'll play all ${pool}` : ''}`;
+  $('teams').innerHTML = S.teams.map((t, i) => `<div class="team-ed"><button class="av" data-i="${i}" title="Change the emoji" style="background:color-mix(in srgb, ${TEAM_COLS[i]} 30%, transparent)">${t.a}</button><input data-i="${i}" value="${esc(t.n)}" maxlength="20">${S.teams.length > 2 ? `<button class="ghost" data-del="${i}">✕</button>` : ''}</div>`).join('');
+  $('teams').querySelectorAll('.av').forEach((b) => b.onclick = () => { const t = S.teams[+b.dataset.i]; t.a = AVATARS[(AVATARS.indexOf(t.a) + 1) % AVATARS.length]; store.set(TEAMS_KEY, S.teams); paintHome(); });
+  $('teams').querySelectorAll('input').forEach((x) => x.oninput = () => { S.teams[+x.dataset.i].n = x.value; store.set(TEAMS_KEY, S.teams); });
+  $('teams').querySelectorAll('[data-del]').forEach((b) => b.onclick = () => { S.teams.splice(+b.dataset.del, 1); store.set(TEAMS_KEY, S.teams); paintHome(); });
+  $('addTeam').classList.toggle('hidden', S.teams.length >= 6);
+  const best = store.get('best', {}), dk = dayKey(), dl = store.get('daily', {});
+  $('bests').innerHTML = [['classic', '🎯 Classic'], ['easy', '🧒 Easy']].filter(([k]) => best[k]).map(([k, n]) => `<span>${n} best: <b>${best[k]} pts</b></span>`).join(' · ')
+    + (store.get('played', 0) ? ` · <span>🎬 ${store.get('played', 0)} movies guessed so far</span>` : '');
+  $('dailyTxt').innerHTML = dl.day === dk ? `You scored <b style="color:var(--yellow)">${dl.score} pts</b> today (${dl.right}/5). Play again for fun — or come back tomorrow!` : 'The same 5 movies for everyone today — challenge your friends!';
+}
+document.querySelectorAll('#modes .mode').forEach((b) => b.onclick = () => { S.mode = b.dataset.m; store.set('mode', S.mode); paintHome(); tone(520, .06, 'triangle'); });
+document.querySelectorAll('#rounds button').forEach((b) => b.onclick = () => { S.rounds = +b.dataset.n; store.set('rounds', S.rounds); paintHome(); tone(600, .05, 'triangle'); });
+$('addTeam').onclick = () => { const used = new Set(S.teams.map((t) => t.a)); S.teams.push({ n: 'Team ' + (S.teams.length + 1), a: AVATARS.find((a) => !used.has(a)) }); store.set(TEAMS_KEY, S.teams); paintHome(); };
+function marquee() { const all = shuffle(MOVIES).slice(0, 30).map((m) => `<span>${m.e}</span>`).join(''); $('marquee').innerHTML = all + all; }
+function floaters() { const pool = WEDDING ? ['🍿', '💍', '🎬', '💕', '🥂', '⭐', '💐', '🎞️', '🤍', '✨'] : ['🍿', '🎬', '🎥', '⭐', '🎞️', '🥤', '🎟️', '🍫', '✨', '🎭'];
+  $('floatBg').innerHTML = Array.from({ length: 18 }, (_, i) => `<span style="left:${(i * 37) % 100}%;animation-duration:${14 + (i * 7) % 16}s;animation-delay:-${(i * 3) % 20}s;font-size:${24 + (i * 11) % 30}px">${pool[i % pool.length]}</span>`).join(''); }
+const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+function seeded(seed) { let h = 2166136261; for (const ch of seed) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 1e6) / 1e6; }; }
+
+/* ── the game ───────────────────────────────────────────────────────────────── */
+const CLUE_MS = 10000, PTS = [100, 80, 60, 40, 25, 10];
+const G = {};
+function show(sec) { ['home', 'game', 'end'].forEach((s) => $(s).classList.toggle('hidden', s !== sec)); document.body.classList.toggle('playing', sec !== 'home'); $('bHome').classList.toggle('hidden', sec === 'home'); scrollTo({ top: 0, behavior: 'smooth' }); }
+function startGame(opts = {}) {
+  const daily = !!opts.daily;
+  const pool = daily ? shuffle(MOVIES, seeded('emoji-cinema-' + dayKey())).slice(0, 5) : shuffle(MOVIES.filter((m) => S.cats.has(m.c)));
+  const list = daily ? pool : (S.rounds ? pool.slice(0, S.rounds) : pool);
+  if (WEDDING && !daily && list.length >= 3) {                                    // 💍 the last movie is a love story worth double
+    const inList = list.findIndex((m) => m.c === 'love');
+    if (inList >= 0) list.push(list.splice(inList, 1)[0]);
+    else { const lv = shuffle(MOVIES.filter((m) => m.c === 'love')); if (lv.length) list[list.length - 1] = lv[0]; }
+  }
+  Object.assign(G, { daily, mode: daily ? 'classic' : S.mode, list, idx: -1, score: 0, streak: 0, bestStreak: 0, right: 0, results: [],
+    teams: S.mode === 'party' && !daily ? S.teams.map((t, i) => ({ ...t, n: t.n.trim() || 'Team ' + (i + 1), c: TEAM_COLS[i], s: 0, r: 0 })) : null });
+  show('game'); nextRound();
+}
+function nextRound() {
+  $('ov').classList.add('hidden');
+  G.idx++;
+  if (G.idx >= G.list.length) return endGame();
+  const m = G.m = G.list[G.idx];
+  Object.assign(G, { elapsed: 0, last: performance.now(), paused: false, done: false, shown: 0, wrong: 0, tickAt: -1 });
+  poster(m); if (G.list[G.idx + 1]) poster(G.list[G.idx + 1]);          // load posters ahead of time
+  const cat = CATS[m.c];
+  $('gCat').style.setProperty('--c', cat.c); $('gCat').innerHTML = `${cat.e} ${esc(cat.n)}`;
+  if (isBonus()) { $('gCat').insertAdjacentHTML('afterend', `<span class="bonus" id="gBonus">💍 BONUS ROUND · DOUBLE POINTS for ${esc(WEDDING.couple)}!</span>`); confetti(90, '💕'); toast(`💍 Bonus round! A love story — double points for ${WEDDING.couple}!`, 3500); }
+  else $('gBonus')?.remove();
+  $('gEmoji').innerHTML = splitEmoji(m.e).map((e, i) => `<span style="animation-delay:${i * 0.12}s">${e}</span>`).join('');
+  $('clues').innerHTML = m.clues.map((c, i) => `<div class="clue" style="--c:${cat.c}" id="clue${i}"><span class="n">${i + 1}</span><span>🔒 Clue ${i + 1} unlocks at ${(i + 1) * 10}s</span></div>`).join('');
+  $('dots').innerHTML = m.clues.map(() => '<i></i>').join('');
+  $('fb').textContent = ''; $('fb').className = 'feedback';
+  $('ansClassic').classList.toggle('hidden', G.mode !== 'classic'); $('ansEasy').classList.toggle('hidden', G.mode !== 'easy'); $('ansParty').classList.toggle('hidden', G.mode !== 'party');
+  if (G.mode === 'classic') { $('guess').value = ''; setTimeout(() => $('guess').focus(), 80); }
+  if (G.mode === 'easy') {
+    const same = shuffle(MOVIES.filter((x) => x.c === m.c && x !== m)), other = shuffle(MOVIES.filter((x) => x !== m && x.c !== m.c));
+    const opts = shuffle([m, ...[...same, ...other].slice(0, 3)]);
+    $('ansEasy').innerHTML = opts.map((x) => `<button class="choice" data-i="${x.i}">${esc(x.t)}</button>`).join('');
+    $('ansEasy').querySelectorAll('.choice').forEach((b) => b.onclick = () => pick(b));
+  }
+  if (G.mode === 'party') {
+    $('who').innerHTML = G.teams.map((t, i) => `<button class="tb" data-t="${i}" style="--c:${t.c}">${t.a} ${esc(t.n)}<small>${t.s} pts</small></button>`).join('') + '<button class="tb" data-t="-1" style="--c:#888">😶 Nobody yet — reveal</button>';
+    $('who').querySelectorAll('.tb').forEach((b) => b.onclick = () => (+b.dataset.t < 0 ? reveal(false) : reveal(true, +b.dataset.t)));
+  }
+  paintHud(); clearInterval(G.timer); G.timer = setInterval(tick, 100); tick();
+  $('railfill').style.width = (G.idx / G.list.length * 100) + '%';
+}
+function paintHud() {
+  const prog = `<span class="pill">🎬 Movie <b>${G.idx + 1}</b>/${G.list.length}</span>`;
+  if (G.teams) $('hud').innerHTML = prog + G.teams.map((t) => `<span class="pill" style="border-color:${t.c}">${t.a} ${esc(t.n)} <b>${t.s}</b></span>`).join('');
+  else $('hud').innerHTML = prog + `<span class="pill">⭐ Score <b>${G.score}</b></span>` + (G.streak > 1 ? `<span class="pill streak">🔥 ${G.streak} in a row!</span>` : '') + (G.daily ? '<span class="pill">📅 Daily 5</span>' : '');
+}
+const isBonus = () => !!(WEDDING && !G.daily && G.list.length >= 3 && G.idx === G.list.length - 1 && G.m && G.m.c === 'love');
+const worth = () => Math.max(10, PTS[Math.min(5, G.shown + G.wrong)]) * (isBonus() ? 2 : 1);
+function tick() {
+  if (G.done) return clearInterval(G.timer);
+  const now = performance.now();
+  if (!G.paused) G.elapsed += now - G.last;
+  G.last = now;
+  const phase = Math.floor(G.elapsed / CLUE_MS);
+  while (G.shown < Math.min(5, phase)) unlock(G.shown);
+  if (phase >= 6) { clearInterval(G.timer); return reveal(false); }
+  const inPhase = G.elapsed % CLUE_MS, left = Math.ceil((CLUE_MS - inPhase) / 1000);
+  $('tFill').style.width = (inPhase / CLUE_MS * 100) + '%';
+  $('tTxt').textContent = G.shown < 5 ? `Next clue in ${left}s` : `Answer revealed in ${left}s!`;
+  $('tTxt').className = left <= 3 ? 'soon' : '';
+  $('tWorth').textContent = G.mode === 'party' || G.teams ? `Worth ${worth()} pts` : `Worth ${worth()} pts${G.streak ? ` + 🔥${Math.min(50, G.streak * 10)}` : ''}`;
+  if (left <= 3 && !G.paused && G.tickAt !== left + phase * 10) { G.tickAt = left + phase * 10; SFX.tick(); }
+}
+function unlock(i) {
+  G.shown = i + 1;                                  // always advance, even if the clue box is gone
+  const el = $('clue' + i); if (!el) return;
+  el.classList.add('on'); el.innerHTML = `<span class="n">${i + 1}</span><span>${esc(G.m.clues[i])}</span>`;
+  document.querySelectorAll('#dots i')[i]?.classList.add('on');
+  SFX.clue();
+}
+function nextClueNow() { if (G.done || G.paused) return; G.elapsed = (Math.floor(G.elapsed / CLUE_MS) + 1) * CLUE_MS; G.last = performance.now(); tick(); }
+function setPause(v) { if (G.done) return; G.paused = v ?? !G.paused; $('paused').classList.toggle('hidden', !G.paused); $('bPause').innerHTML = G.paused ? '▶ Resume <span class="kbd">P</span>' : '⏸ Pause <span class="kbd">P</span>'; if (!G.paused && G.mode === 'classic') $('guess').focus(); }
+function submitGuess() {
+  if (G.done) return;
+  const v = $('guess').value, r = judge(v, G.m);
+  if (r === 'empty') return;
+  if (r === 'ok') return reveal(true);
+  G.wrong = Math.min(5, G.wrong + 1);
+  const inp = $('guess'); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
+  $('fb').className = 'feedback ' + (r === 'close' ? 'close' : 'bad');
+  $('fb').textContent = r === 'close' ? '🤏 So close! Check the spelling…' : ['❌ Nope — try again!', '🙈 Not that one!', '🤔 Hmm, nope!', '😅 Good try — no!'][Math.floor(Math.random() * 4)];
+  (r === 'close' ? SFX.close : SFX.no)(); inp.select();
+}
+function pick(btn) {
+  if (G.done) return;
+  if (+btn.dataset.i === G.m.i) return reveal(true);
+  btn.disabled = true; G.wrong = Math.min(5, G.wrong + 1); SFX.no();
+  $('fb').className = 'feedback bad'; $('fb').textContent = '❌ Not that one — the prize just got smaller!';
+}
+async function reveal(correct, team) {
+  if (G.done) return;
+  G.done = true; clearInterval(G.timer); G.paused = false; $('paused').classList.add('hidden');
+  const m = G.m, secs = Math.round(G.elapsed / 1000), cat = CATS[m.c];
+  let pts = 0, bonus = 0;
+  if (correct) {
+    pts = worth();
+    if (G.teams) { G.teams[team].s += pts; G.teams[team].r++; }
+    else { G.streak++; G.bestStreak = Math.max(G.bestStreak, G.streak); bonus = G.streak > 1 ? Math.min(50, (G.streak - 1) * 10) : 0; G.score += pts + bonus; }
+    G.right++; store.set('played', store.get('played', 0) + 1);
+  } else if (!G.teams) G.streak = 0;
+  G.results.push({ m, correct, pts: pts + bonus, secs, clues: G.shown, team });
+  paintHud();
+  const who = G.teams && correct ? G.teams[team] : null;
+  const cheers = ['🎉 You got it!', '🌟 Brilliant!', '🍿 Movie genius!', '🤩 Nailed it!', '💥 Boom! Correct!', ...(WEDDING ? [`💍 ${WEDDING.couple} approve!`, `🥂 Cheers to ${WEDDING.couple}!`, `💕 ${WEDDING.bride} would be proud!`, `🤵 Even ${WEDDING.groom} is impressed!`] : [])];
+  const head = correct ? (who ? `🎉 ${esc(who.a)} ${esc(who.n)} got it!` : esc(cheers[Math.floor(Math.random() * cheers.length)])) : (G.shown >= 5 ? '⏰ Time’s up! It was…' : '🙌 The answer is…');
+  const last = G.idx === G.list.length - 1;
+  $('ov').innerHTML = `<div class="rv" style="--c:${cat.c}">
+    <div><div class="poster" id="pst"><div class="in"><div class="face front">🎬<small>Rolling…</small></div><div class="face back" id="pstBack"></div></div></div><div class="credit" id="pstCred"></div></div>
+    <div>
+      <div class="res ${correct ? 'ok' : 'no'}">${head}</div>
+      <h2>${esc(m.t)}</h2><div class="yr">${m.y} · <span class="catchip" style="--c:${cat.c}">${cat.e} ${esc(cat.n)}</span></div>
+      <div class="em">${esc(m.e)}</div>
+      <div class="pts">${correct ? `<span>⭐ <b>+${pts}</b> pts</span>${bonus ? `<span>🔥 streak <b>+${bonus}</b></span>` : ''}<span>⏱️ ${secs}s</span><span>💡 ${G.shown} clue${G.shown === 1 ? '' : 's'}</span>` : `<span>💡 ${G.shown} clue${G.shown === 1 ? '' : 's'} shown</span>`}</div>
+      <ol>${m.clues.map((c) => `<li>${esc(c)}</li>`).join('')}</ol>
+      <div class="acts"><button class="big" id="bNext">${last ? '🏆 See the results' : '▶ Next movie'} <span class="kbd" style="color:#fff">Enter</span></button></div>
+    </div></div>`;
+  $('ov').classList.remove('hidden');
+  $('bNext').onclick = nextRound;
+  if (correct) { SFX.ok(); confetti(150, WEDDING && Math.random() < .4 ? '💕' : splitEmoji(m.e)[0]); } else SFX.reveal();
+  const src = await poster(m);
+  const back = $('pstBack'); if (!back || G.m !== m) return;
+  back.innerHTML = src ? `<img src="${esc(src)}" alt="Poster of ${esc(m.t)}">` : `<div class="fb" style="--c:${cat.c}"><div>${esc(m.e)}</div><b>${esc(m.t)}</b><span style="font-size:14px;color:var(--ink2)">${m.y}</span></div>`;
+  $('pstCred').innerHTML = src ? `Image: <a href="https://en.wikipedia.org/wiki/${m.w}" target="_blank" rel="noopener" style="color:inherit">Wikipedia</a>` : '';
+  setTimeout(() => $('pst') && $('pst').classList.add('flip'), 250);
+}
+function endGame() {
+  const n = G.results.length, right = G.results.filter((r) => r.correct).length;
+  let html = '';
+  if (G.teams) {
+    const order = G.teams.slice().sort((a, b) => b.s - a.s), tie = order[1] && order[0].s === order[1].s;
+    html = `<div class="trophy">🏆</div><h2>${tie ? 'It’s a tie!' : `${esc(order[0].a)} ${esc(order[0].n)} wins!`}</h2>
+      <div class="podium">${order.map((t, i) => `<div style="border:2px solid ${t.c}">${['🥇', '🥈', '🥉'][i] || '🎬'} ${esc(t.a)} ${esc(t.n)}<span class="sc">${t.s} pts · ${t.r} ✓</span></div>`).join('')}</div>`;
+  } else {
+    const max = n * 100, pct = max ? G.score / max : 0;
+    const rank = pct >= .85 ? ['🏆', 'Cinema Legend'] : pct >= .65 ? ['🌟', 'Movie Buff'] : pct >= .45 ? ['🎬', 'Film Fan'] : pct >= .25 ? ['🍿', 'Popcorn Pal'] : ['🎟️', 'Movie Rookie'];
+    const best = store.get('best', {}), key = G.daily ? 'daily' : G.mode, isBest = !G.daily && G.score > (best[key] || 0);
+    if (isBest) { best[key] = G.score; store.set('best', best); }
+    if (G.daily) store.set('daily', { day: dayKey(), score: G.score, right });
+    html = `<div class="trophy">${rank[0]}</div><h2>${G.score} points!</h2><div class="rank">${rank[1]}</div>${isBest ? '<div style="margin-top:10px;font-weight:900;color:var(--green)">🎉 New personal best!</div>' : ''}
+      <div class="stats"><div><b>${right}/${n}</b><span>movies guessed</span></div><div><b>${G.bestStreak}</b><span>best streak 🔥</span></div>
+      <div><b>${right ? Math.round(G.results.filter((r) => r.correct).reduce((s, r) => s + r.secs, 0) / right) : '—'}s</b><span>average time</span></div>
+      <div><b>${right ? (G.results.filter((r) => r.correct).reduce((s, r) => s + r.clues, 0) / right).toFixed(1) : '—'}</b><span>clues needed</span></div></div>`;
+  }
+  html += `<div class="sec-t" style="text-align:left">${WEDDING ? 'Your movie night at the wedding' : 'Your movie night'}</div><div class="recap" id="recap">${G.results.map((r, i) => `<div class="rc ${r.correct ? 'ok' : 'no'}"><div class="im" id="rc${i}">${esc(splitEmoji(r.m.e)[0])}</div><div class="t">${r.correct ? '✅' : '❌'} ${esc(r.m.t)}<small>${r.m.y}${r.correct ? ` · +${r.pts}` : ''}${G.teams && r.correct ? ' · ' + esc(G.teams[r.team].a) : ''}</small></div></div>`).join('')}</div>
+    <div class="row" style="justify-content:center;margin-top:20px"><button class="big" id="again" style="width:auto;padding:16px 28px;margin:0">🔁 Play again</button><button class="ghost" id="share">📋 Copy my result</button><button class="ghost" id="menu">🏠 Menu</button></div>`;
+  if (WEDDING) html += `<div class="couple" style="margin-top:24px"><small>Thank you for celebrating with</small><div class="nm">${esc(WEDDING.bride)}<span class="amp heart">♥</span>${esc(WEDDING.groom)}</div><small>Here’s to a lifetime of movie nights together 🍿💕</small></div>`;
+  $('end').innerHTML = `<div class="panel end"><div class="eyebrow" style="justify-content:center">That’s a wrap</div>${html}</div>`;
+  $('railfill').style.width = '100%';
+  show('end'); SFX.fan(); confetti(220, '🍿'); setTimeout(() => confetti(160, WEDDING ? '💍' : '⭐'), 600); if (WEDDING) setTimeout(() => confetti(140, '💕'), 1300);
+  G.results.forEach((r, i) => poster(r.m).then((src) => { const el = $('rc' + i); if (el && src) el.innerHTML = `<img src="${esc(src)}" alt="" loading="lazy">`; }));
+  $('again').onclick = () => startGame({ daily: G.daily });
+  $('menu').onclick = home;
+  $('share').onclick = async () => {
+    const txt = `🍿 Emoji Cinema${WEDDING ? ` · ${WEDDING.couple}’s wedding 💍` : ''}${G.daily ? ' · Daily 5 (' + dayKey() + ')' : ''}\n${G.teams ? G.teams.slice().sort((a, b) => b.s - a.s).map((t) => `${t.a} ${t.n}: ${t.s}`).join('\n') : `${G.score} pts · ${right}/${n} movies`}\n${G.results.map((r) => (r.correct ? '🟩' : '🟥')).join('')}\nCan you beat me? 🎬`;
+    try { await navigator.clipboard.writeText(txt); toast('📋 Copied — paste it to your friends!'); } catch { prompt('Copy your result:', txt); }
+  };
+}
+function home() { $('railfill').style.width = '0'; G.done = true; $('ov').classList.add('hidden'); paintHome(); marquee(); show('home'); }
+
+/* ── wiring ─────────────────────────────────────────────────────────────────── */
+$('start').onclick = () => { tone(440, .08); startGame(); };
+$('daily').onclick = () => startGame({ daily: true });
+$('bGuess').onclick = submitGuess;
+$('guess').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitGuess(); } });
+$('bClue').onclick = nextClueNow;
+$('bPause').onclick = () => setPause();
+$('paused').onclick = () => setPause(false);
+$('bGive').onclick = () => reveal(false);
+$('bHome').onclick = home; $('logo').onclick = home;
+document.addEventListener('keydown', (e) => {
+  const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
+  if (!$('ov').classList.contains('hidden') && e.key === 'Enter') { e.preventDefault(); return $('bNext') && $('bNext').click(); }
+  if ($('game').classList.contains('hidden')) return;
+  if (e.key === ' ' && !typing) { e.preventDefault(); nextClueNow(); }
+  if ((e.key === 'p' || e.key === 'P') && !typing) setPause();
+  if (e.key === 'Escape') setPause(true);
+  if ((e.key === 'm' || e.key === 'M') && !typing) $('bSound').click();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && !$('game').classList.contains('hidden') && !G.done) setPause(true); });
+function paintWedding() {
+  const n = MOVIES.length, c = Object.keys(CATS).length;
+  $('heroK').textContent = WEDDING ? 'Wedding game time 💍' : `Movie night · ${n} films · ${c} genres`;
+  if (!WEDDING) return;
+  $('logoK').textContent = `${WEDDING.bride.toUpperCase()} ♥ ${WEDDING.groom.toUpperCase()}`;
+  const [a, b] = WEDDING.full.split(' & ');
+  $('logo').classList.add('wed'); $('tCouple').classList.remove('hidden');
+  $('tCouple').innerHTML = `<small>The wedding of</small><b><span class="full">${esc(a)}<span class="amp heart">♥</span>${esc(b)}</span><span class="short">${esc(WEDDING.bride)}<span class="amp heart">♥</span>${esc(WEDDING.groom)}</span></b>`;
+  document.title = `Emoji Cinema 🍿 · ${WEDDING.couple}'s Wedding`;
+  $('couple').classList.remove('hidden');
+  $('couple').innerHTML = `<small>The wedding of</small><div class="nm">${esc(WEDDING.full.split(' & ')[0])}<span class="amp heart">♥</span>${esc(WEDDING.full.split(' & ')[1])}</div><small>${n} movies · ${c} genres · a new clue every 10 s</small>`;
+  document.querySelector('.hero p').innerHTML = `Welcome, dear guests! 🥂 While we celebrate <b>${esc(WEDDING.couple)}</b>, guess the movie from the emojis. No idea? A new clue pops up every <b>10 seconds</b> — the faster you guess, the more points you get. The last movie is a <b>💍 love-story bonus round</b> worth double!`;
+}
+paintSound(); floaters(); marquee(); paintWedding(); paintHome();
+</script>
+</body>
+</html>
