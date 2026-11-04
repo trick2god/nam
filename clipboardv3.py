@@ -752,6 +752,8 @@ class Popup:
         self.initial_focus = None
         self.save = None
         self.drafts = {}             # unsaved View edits, per file
+        self._active_seen = False    # watchdog: has the popup been the active window yet?
+        self._away_since = None
         self.current_stem = ""
         self.settings = load_settings()
         self.quit_event = kernel32.CreateEventW(None, True, False, QUIT_EVENT_NAME)
@@ -834,7 +836,26 @@ class Popup:
                     self.root.after(300, lambda h=arg: self.open_save(h))
         except queue.Empty:
             pass
+        self._watch_active()
         self.root.after(30, self._poll)
+
+    def _watch_active(self):
+        """Safety net: if you're working in another window, close the popup (it must never linger
+        on top). Once the popup has been active, 0.7 s elsewhere closes it; if Windows never gave it
+        focus at all, it closes after 8 s. Unsaved View edits are kept as a draft by hide()."""
+        if not (self.visible and self.hwnd):
+            self._away_since = None
+            return
+        now = time.time()
+        if user32.GetForegroundWindow() == self.hwnd:
+            self._active_seen = True
+            self._away_since = None
+            return
+        if self._away_since is None:
+            self._away_since = now
+        elif now - self._away_since > (0.7 if self._active_seen else 8.0):
+            self._away_since = None
+            self.hide()
 
     # ---- window handling
     def show(self, target_hwnd):
@@ -862,6 +883,8 @@ class Popup:
 
     def _open(self, target_hwnd, screen):
         self.target = target_hwnd
+        self._active_seen = False
+        self._away_since = None
         screen()
         self._place_at_cursor()
         self.root.deiconify()
