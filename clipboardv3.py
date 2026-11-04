@@ -60,16 +60,16 @@ SNIPPET_DIR = Path(__file__).resolve().parent / "clipboard"
 # "paste" = puts each line on the clipboard + Ctrl+V. Apps like Teams read the clipboard
 #           late, so a fast next line can overwrite it (lost or doubled lines). Use PASTE_DELAY.
 MODE = "type"
-STEP_DELAY = 0.15         # seconds between lines in "type" mode
-BEFORE_ENTER = 0.35       # wait after a line is typed/pasted so the app has it in the box before Enter
-AFTER_ENTER = 0.7         # wait after Enter so the app can send the message and clear the box
+STEP_DELAY = 0.1         # seconds between lines in "type" mode
+BEFORE_ENTER = 0.1       # wait after a line is typed/pasted so the app has it in the box before Enter
+AFTER_ENTER = 0.1        # wait after Enter so the app can send the message and clear the box
 # Chat apps sometimes ignore an Enter right after sending the previous message. In these apps a
 # second "confirm" Enter is pressed: if the first one worked the box is empty and the second
 # does nothing; if the first was ignored, the second sends the line.
 CHAT_APPS = {"ms-teams.exe", "teams.exe", "slack.exe", "whatsapp.exe", "telegram.exe",
              "discord.exe", "msedge.exe", "chrome.exe"}
-CONFIRM_DELAY = 0.6       # wait before the confirm Enter
-PASTE_DELAY = 0.8         # seconds to wait after each Ctrl+V in "paste" mode before touching the clipboard again
+CONFIRM_DELAY = 0.1      # wait before the confirm Enter
+PASTE_DELAY = 0.1         # seconds to wait after each Ctrl+V in "paste" mode before touching the clipboard again
 RESTORE_CLIPBOARD = True  # put your original clipboard text back afterwards
 POPUP_WIDTH = 360         # px at 100% scaling
 SAVE_WIDTH = 440          # the "Save copied text" form is a bit wider
