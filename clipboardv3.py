@@ -36,7 +36,8 @@ Keys in the popup:
   0          paste the normal clipboard (the old Ctrl+V)
   1-9        choose an item          Up/Down + Enter  move and choose
   Backspace  go back                 Esc              close
-  Esc while lines are being sent stops the sending.
+  Esc or Ctrl+Z while lines are being sent stops the sending
+  (Ctrl+Z is normal undo the rest of the time). After saving, Ctrl+Z undoes the save.
 
 Run with:  pythonw clipboard.py   (no console)  or  python clipboard.py
 """
@@ -136,7 +137,7 @@ WH_KEYBOARD_LL = 13
 WM_KEYDOWN, WM_SYSKEYDOWN, WM_QUIT = 0x0100, 0x0104, 0x0012
 VK_SHIFT, VK_CONTROL, VK_MENU = 0x10, 0x11, 0x12
 VK_LWIN, VK_RWIN, VK_ESCAPE, VK_RETURN, VK_V = 0x5B, 0x5C, 0x1B, 0x0D, 0x56
-WM_KEYUP, WM_SYSKEYUP, VK_C = 0x0101, 0x0105, 0x43
+WM_KEYUP, WM_SYSKEYUP, VK_C, VK_Z = 0x0101, 0x0105, 0x43, 0x5A
 INPUT_KEYBOARD, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE = 1, 0x0002, 0x0004
 CF_UNICODETEXT, GMEM_MOVEABLE = 13, 0x0002
 GA_ROOT = 2
@@ -385,6 +386,7 @@ class KeyHook(threading.Thread):
         self.tid = None
         self._last_c = 0.0
         self._c_held = False
+        self.sending = False      # set by the popup while it is typing lines
         self._proc = HOOKPROC(self._callback)   # keep a reference or it gets garbage-collected
 
     def run(self):
@@ -414,6 +416,9 @@ class KeyHook(threading.Thread):
                         is_down(k) for k in (VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN))
                     if kb.vkCode == VK_ESCAPE:
                         self.on_escape()
+                    elif kb.vkCode == VK_Z and plain_ctrl and self.sending:
+                        self.on_escape()     # Ctrl+Z = stop sending
+                        return 1             # swallowed, so the app doesn't undo what was typed
                     elif kb.vkCode == VK_V and plain_ctrl:
                         self.on_ctrl_v(user32.GetForegroundWindow())
                         return 1   # swallow the key, the popup takes over
@@ -620,6 +625,7 @@ class Popup:
         self.editor = None
         self._bs_was_empty = False
         self.width = POPUP_WIDTH
+        self.undo_action = None
         self.save = None
         self.current_stem = ""
         self.settings = load_settings()
@@ -669,6 +675,8 @@ class Popup:
         r.bind("<Return>", lambda e: self.activate(self.sel))
         r.bind("<Right>", lambda e: None if self._in_search() else self.activate(self.sel))
         r.bind("<Key>", self.on_key)
+        r.bind("<Control-z>", lambda e: self.undo_action() if self.undo_action else None)
+        r.bind("<Control-Z>", lambda e: self.undo_action() if self.undo_action else None)
         r.bind("<FocusOut>", lambda e: r.after(250, self._check_focus))
 
         self.hook = KeyHook(self._from_hook_ctrl_v, self._from_hook_escape, self._from_hook_copy_twice)
@@ -782,6 +790,7 @@ class Popup:
             child.destroy()
         self.title_lbl.config(text=title)
         self.width = POPUP_WIDTH
+        self.undo_action = None
         self.back_action = back
         if back:
             self.back_lbl.pack(side="left", before=self.title_lbl, padx=(0, 6))
@@ -1321,6 +1330,7 @@ class Popup:
             self._save_preview()
             return
         try:
+            plan["before"] = read_text(plan["path"]) if plan["path"].exists() else None
             write_snippet_file(plan["path"], plan["lines"])
         except OSError as exc:
             self.save["msg"].config(text=f"Could not save: {exc}", fg=WARN)
@@ -1338,8 +1348,12 @@ class Popup:
              "action": lambda: self.show_sections(path)},
             {"key": "3", "label": "Open the file in Notepad", "sub": path.name,
              "action": lambda: (os.startfile(path), self.hide())},
+            {"key": "4", "label": "Undo this save   (Ctrl+Z)",
+             "sub": "removes the new file" if plan.get("before") is None else "puts the file back how it was",
+             "action": lambda: self.undo_save(plan)},
         ]
-        self.render("Saved ✓", items, hint="Esc close")
+        self.render("Saved \u2713", items, hint="Ctrl+Z undo \u2022 Esc close")
+        self.undo_action = lambda: self.undo_save(plan)
         info = tk.Frame(self.body, bg=BADGE_BG)
         info.pack(fill="x", padx=4, pady=(0, 4), before=self.list_frame)
         tk.Label(info, text=plan["desc"], bg=BADGE_BG, fg=BORDER, font=(FONT, 8, "bold"), anchor="w",
@@ -1349,6 +1363,22 @@ class Popup:
                  anchor="w", justify="left").pack(fill="x", padx=8, pady=(0, 6))
         self.root.focus_set()
         self._resize()
+
+    def undo_save(self, plan):
+        path, before = plan["path"], plan.get("before")
+        try:
+            if before is None:
+                path.unlink(missing_ok=True)
+                what = f"Removed {path.name}"
+            else:
+                path.write_text(before, encoding="utf-8", newline="\r\n")
+                what = f"{path.name} is back to how it was"
+        except OSError as exc:
+            what = f"Could not undo: {exc}"
+        self.render("Undone \u21b6", [{"key": "1", "label": "Done", "sub": what, "action": self.hide},
+                                      {"key": "2", "label": "Back to the menu", "sub": "",
+                                       "action": self.show_files}], hint="Esc close")
+        self.root.focus_set()
 
     # ---- help
     def show_help(self):
@@ -1383,7 +1413,7 @@ class Popup:
                        "Ctrl+C twice    save what you copied  (new file, section, freestyle...)\n"
                        "Tab             Auto send / Confirm / Edit first\n"
                        "Right-click     edit a snippet before sending\n"
-                       "Esc             close, or stop sending\n"
+                       "Esc / Ctrl+Z    close, or STOP while it is sending\n"
                        "{name} {greeting} {day} {date} {time} {clipboard}   filled in when sent", mono=True)
         self._buttons(lf, [("Back", self.show_files, BADGE_BG),
                            ("Open clipboard folder", lambda: (os.startfile(SNIPPET_DIR), self.hide()), BORDER)])
@@ -1420,6 +1450,7 @@ class Popup:
         messages = [lines] if self.settings["one_message"] else [[l] for l in lines]
         self._return_to_target()
         self.busy = True
+        self.hook.sending = True
         self.abort.clear()
         threading.Thread(target=self._send_job, args=(messages,), daemon=True).start()
 
@@ -1458,6 +1489,7 @@ class Popup:
                 time.sleep(PASTE_DELAY)
                 clip_set(original)
             self.busy = False
+            self.hook.sending = False
 
     def run(self):
         self.root.mainloop()
