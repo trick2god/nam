@@ -90,7 +90,7 @@ RESTORE_CLIPBOARD = True  # put your original clipboard text back afterwards
 POPUP_WIDTH = 360         # px at 100% scaling
 SAVE_WIDTH = 440          # the "Save copied text" form is a bit wider
 VIEW_WIDTH = 700          # the View / Edit file screen
-COPY_TWICE_WINDOW = 0.6   # Ctrl+C twice within this many seconds opens "Save copied text"
+COPY_TWICE_WINDOW = 0.45  # Ctrl+C twice within this many seconds opens "Save copied text" (if switched on)
 FREESTYLE_FILE = SNIPPET_DIR / "freestyle.txt"
 SETTINGS_FILE = Path(__file__).resolve().parent / "clipboard_settings.json"   # remembers your choices
 MUTEX_NAME = "Local\\ClipboardSnippetsPopup"
@@ -103,7 +103,7 @@ SEND_MODES = {
     "edit":    ("Edit first", "Click opens the editor"),
 }
 DEFAULT_SETTINGS = {"mode": "confirm", "one_message": False, "last_save": "freestyle.txt",
-                    "input": "fast"}
+                    "input": "fast", "copy_twice": True}
 
 
 def load_settings():
@@ -522,37 +522,62 @@ SECTION_KINDS = {1: "all", 2: "choices"}   # 3+ colons = "blocks"
 MASK = "**********"      # what hidden text looks like in the popup ('name*:' sections)
 
 
+def split_block_spans(pairs):
+    """pairs = [(line_index, raw_text)] -> [(start, end, [lines])], blocks split by blank lines."""
+    out, cur, first, last = [], [], 0, 0
+    for idx, raw in pairs:
+        line = raw.strip()
+        if line:
+            if not cur:
+                first = idx
+            cur.append(line)
+            last = idx
+        elif cur:
+            out.append((first, last + 1, cur))
+            cur = []
+    if cur:
+        out.append((first, last + 1, cur))
+    return out
+
+
 def parse_sections(path):
     """Headers are lines ending in colons:
          name:    send all the lines below it (each line = one message)
          name::   a menu - every line below it is its own choice
          name:::  a freestyle menu - blocks separated by blank lines, each block is one choice
+       Every section / choice / block also gets a 'span' (its line range in the file) so it can be removed.
     """
     sections, current = [], None
-    for raw in read_text(path).splitlines():
+    for idx, raw in enumerate(read_text(path).splitlines()):
         line = raw.strip()
         if line.endswith(":"):
             colons = len(line) - len(line.rstrip(":"))
             name = line.rstrip(":").strip()
             hidden = name.endswith("*")          # 'password*:' -> content shown as ********
-            current = {"title": name.rstrip("*").strip() or line, "hidden": hidden,
-                       "kind": SECTION_KINDS.get(colons, "blocks"), "raw": []}
+            current = {"title": name.rstrip("*").strip() or line, "hidden": hidden, "header": line,
+                       "line_no": idx, "kind": SECTION_KINDS.get(colons, "blocks"), "raw": []}
             sections.append(current)
             continue
         if current is None:
             if not line:
                 continue
-            current = {"title": "(no header)", "kind": "all", "hidden": False, "raw": []}   # text before the first header
+            current = {"title": "(no header)", "kind": "all", "hidden": False, "header": None,
+                       "line_no": None, "raw": []}   # text before the first header
             sections.append(current)
-        current["raw"].append(raw)
+        current["raw"].append((idx, raw))
     for sec in sections:
         raw = sec.pop("raw")
-        sec["lines"] = [l.strip() for l in raw if l.strip()]
+        content = [(i, r) for i, r in raw if r.strip()]
+        sec["lines"] = [r.strip() for _, r in content]
+        first = sec["line_no"] if sec["line_no"] is not None else (content[0][0] if content else 0)
+        sec["span"] = (first, content[-1][0] + 1 if content else first + 1)
         secret = {"hidden": sec["hidden"], "secret_title": sec["hidden"]}   # option titles ARE the text
         if sec["kind"] == "choices":
-            sec["options"] = [{"title": l, "lines": [l], **secret} for l in sec["lines"]]
+            sec["options"] = [{"title": r.strip(), "lines": [r.strip()], "span": (i, i + 1), **secret}
+                              for i, r in content]
         elif sec["kind"] == "blocks":
-            sec["options"] = [{"title": b[0], "lines": b, **secret} for b in split_blocks(raw)]
+            sec["options"] = [{"title": b[0], "lines": b, "span": (a, z), **secret}
+                              for a, z, b in split_block_spans(raw)]
     return sections
 
 
@@ -562,7 +587,8 @@ def is_freestyle(path):
 
 def parse_blocks(path):
     """Freestyle: blocks are separated by one or more blank lines; each block is one option."""
-    return [{"title": b[0], "lines": b} for b in split_blocks(read_text(path).splitlines())]
+    pairs = list(enumerate(read_text(path).splitlines()))
+    return [{"title": b[0], "lines": b, "span": (a, z)} for a, z, b in split_block_spans(pairs)]
 
 
 def load_options(path):
@@ -647,6 +673,33 @@ def is_freestyle_file(path):
     return path.exists() and not section_ranges(file_lines(path))
 
 
+def remove_span(path, start, end, expect):
+    """Removes lines [start, end) from the file, after checking they are still what we showed."""
+    lines = file_lines(path)
+    if [l.strip() for l in lines[start:end] if l.strip()] != expect:
+        raise ValueError("the file changed since the menu was opened - go back and try again")
+    new = lines[:start] + lines[end:]
+    i = max(start, 1)
+    while i < len(new) and not new[i].strip() and not new[i - 1].strip():
+        del new[i]                     # don't leave a double blank line where it was
+    while new and not new[0].strip():
+        new.pop(0)
+    write_snippet_file(path, new)
+
+
+def set_header_hidden(path, line_no, header, hide):
+    """Adds or removes the '*' before the colons of one header line ('name:' <-> 'name*:')."""
+    lines = file_lines(path)
+    if line_no is None or line_no >= len(lines) or lines[line_no].strip() != header:
+        raise ValueError("the file changed since the menu was opened - go back and try again")
+    stripped = lines[line_no].strip()
+    name = stripped.rstrip(":")
+    colons = stripped[len(name):]
+    name = name.rstrip().rstrip("*").rstrip()
+    lines[line_no] = (name + "*" if hide else name) + colons
+    write_snippet_file(path, lines)
+
+
 def write_snippet_file(path, lines):
     """Writes the file (CRLF, UTF-8) after keeping a backup in clipboard/.backup/."""
     if path.exists():
@@ -695,8 +748,10 @@ class Popup:
         self.viewer = None
         self.view_editing = False
         self.leave_guard = None
+        self.on_leave = None
         self.initial_focus = None
         self.save = None
+        self.drafts = {}             # unsaved View edits, per file
         self.current_stem = ""
         self.settings = load_settings()
         self.quit_event = kernel32.CreateEventW(None, True, False, QUIT_EVENT_NAME)
@@ -759,7 +814,8 @@ class Popup:
         self.events.put(("show", hwnd))
 
     def _from_hook_copy_twice(self, hwnd):
-        self.events.put(("save", hwnd))
+        if self.settings.get("copy_twice", True):      # can be switched off (save form / help)
+            self.events.put(("save", hwnd))
 
     def _from_hook_escape(self):
         if self.busy:
@@ -836,17 +892,15 @@ class Popup:
             target.icursor("end")
 
     def hide(self):
-        if self.leave_guard and not self.leave_guard():
-            self.go_back()                 # shows the "unsaved changes" warning first
-            return
+        if self.on_leave:
+            self.on_leave()                # View: keep unsaved edits as a draft (restored next time)
+            self.on_leave = None
         self.root.withdraw()
         self.visible = False
 
     def _check_focus(self):
         if self.visible and self.root.focus_get() is None:
-            if self.leave_guard and not self.leave_guard():
-                return                     # editing with unsaved changes: keep the window open
-            self.hide()
+            self.hide()                    # clicked somewhere else: always close (drafts are kept)
 
     def _place_at_cursor(self):
         self.root.update_idletasks()
@@ -882,6 +936,9 @@ class Popup:
     # ---- list rendering
     def render(self, title, items, back=None, hint="", search=False):
         """items: list of dicts {key, label, sub, action, [text]}"""
+        if self.on_leave:
+            self.on_leave()                # leaving the View: keep unsaved edits as a draft
+            self.on_leave = None
         for child in self.body.winfo_children():
             child.destroy()
         self.title_lbl.config(text=title)
@@ -890,6 +947,7 @@ class Popup:
         self.viewer = None
         self.view_editing = False
         self.leave_guard = None
+        self.on_leave = None
         self.initial_focus = None
         self.back_action = back
         if back:
@@ -977,6 +1035,21 @@ class Popup:
             badge = tk.Label(row, text=item.get("key", ""), width=2, bg=color or BADGE_BG,
                              fg=BG if color else FG, font=(FONT, 9, "bold"))
             badge.pack(side="left", padx=(6, 8), pady=6, anchor="n")
+            if item.get("remove"):   # bin button on the far right: remove this file / entry
+                bin_ = tk.Label(row, text="\U0001F5D1", bg=BADGE_BG, fg=WARN, font=(FONT, 10),
+                                cursor="hand2", padx=5, pady=1)
+                bin_.pack(side="right", padx=(2, 6), pady=6, anchor="n")
+                bin_.bind("<Button-1>", lambda e, f=item["remove"]: (f(), "break")[1])
+                bin_.bind("<Enter>", lambda e, w=bin_: w.config(bg=WARN, fg=BG))
+                bin_.bind("<Leave>", lambda e, w=bin_: w.config(bg=BADGE_BG, fg=WARN))
+            if item.get("toggle"):   # Hide / Show: adds or removes the * in the header
+                t_text, t_action = item["toggle"]
+                tog = tk.Label(row, text=t_text, bg=BADGE_BG, fg=SUB, font=(FONT, 8, "bold"),
+                               cursor="hand2", padx=6, pady=2)
+                tog.pack(side="right", padx=(2, 2), pady=6, anchor="n")
+                tog.bind("<Button-1>", lambda e, f=t_action: (f(), "break")[1])
+                tog.bind("<Enter>", lambda e, w=tog: w.config(bg=BORDER, fg=FG))
+                tog.bind("<Leave>", lambda e, w=tog: w.config(bg=BADGE_BG, fg=SUB))
             if item.get("view"):     # eye button on the right: view / edit the whole file
                 eye = tk.Label(row, text="👁", bg=BADGE_BG, fg=FG, font=(FONT, 11),
                                cursor="hand2", padx=6, pady=1)
@@ -1086,7 +1159,11 @@ class Popup:
                           "text": f"{path.stem} {sub}",
                           "action": lambda p=path: self.show_sections(p),
                           "view": lambda p=path: self.show_view(p, back=self.show_files),
+                          "remove": None if color is None else (lambda p=path: self._remove_file(p)),
                           "context": lambda p=path: self.show_view(p, back=self.show_files)})
+        items.append({"key": "", "label": "\uff0b  New text file", "always": True,
+                      "sub": "create an empty file (a new person / topic) and start typing",
+                      "action": self.show_new_file})
         items.append({"key": "+", "label": "＋ Save copied text as a snippet", "always": True,
                       "sub": "tip: press Ctrl+C twice quickly anywhere to open this",
                       "action": lambda: self.show_save(clip_get() or "")})
@@ -1217,6 +1294,16 @@ class Popup:
                               "action": lambda s=sec: self.show_menu(path, s)})
             else:
                 items.append(self._snippet_item(sec, key, freestyle, back))
+            items[-1]["remove"] = self._remover_for(path, sec, back, section=not freestyle)
+            if not freestyle and sec.get("header"):
+                hide = not sec.get("hidden")
+                items[-1]["toggle"] = ("\U0001F512 Hide" if hide else "\U0001F513 Show",
+                                       lambda s_=sec, h=hide: self._toggle_hidden(path, s_, h, back))
+        add_title = "Add snippet" if freestyle else "Add entry"
+        items.append({"key": "", "label": f"\uff0b  {add_title}", "always": True,
+                      "sub": ("type a new snippet and save it" if freestyle
+                              else "type it, pick the type (:  ::  :::) and save"),
+                      "action": lambda: self.show_save("", target=path, title=add_title, back=back)})
         items.append({"key": "", "label": "\U0001F441  View whole file", "always": True,
                       "sub": f"see and edit {path.name}",
                       "action": lambda: self.show_view(path, back=back)})
@@ -1228,9 +1315,19 @@ class Popup:
         """Submenu for 'name::' (one choice per line) and 'name:::' (blocks, searchable)."""
         blocks = sec["kind"] == "blocks"
         opts = sec["options"]
-        back = lambda: self.show_menu(path, sec)
+        title_key, kind_key = sec["title"], sec["kind"]
+        back = lambda: self._reopen_menu(path, title_key, kind_key)   # re-reads the file (after add/remove)
         items = [self._snippet_item(o, "" if blocks or n > 9 else str(n), blocks, back)
                  for n, o in enumerate(opts, start=1)]
+        for item, o in zip(items, opts):
+            item["remove"] = self._remover_for(path, o, back)
+        ranges = section_ranges(file_lines(path))
+        sec_index = next((i for i, r in enumerate(ranges) if r[2] == sec.get("line_no")), 0)
+        add_title = "Add snippet" if blocks else "Add choice"
+        items.append({"key": "", "label": f"\uff0b  {add_title}", "always": True,
+                      "sub": f"adds to '{sec['title']}'",
+                      "action": lambda: self.show_save("", target=path, how="add", sec=sec_index,
+                                                       title=add_title, back=back)})
         hint = ("type to search • Enter pick • right-click edit • Backspace back" if blocks
                 else "type to search • 1-9 pick • right-click edit • Backspace back")
         self.render(f"{path.stem} › {sec['title']}", items,
@@ -1304,6 +1401,141 @@ class Popup:
         editor.mark_set("insert", "end-1c")
         self._resize()
 
+    # ---- add / remove files and entries
+    def _reopen_menu(self, path, title, kind):
+        """Re-read the file and show the '::' / ':::' menu again (it may have changed)."""
+        for sec in parse_sections(path) if path.exists() else []:
+            if sec["title"] == title and sec["kind"] == kind:
+                self.show_menu(path, sec)
+                return
+        self.show_sections(path) if path.exists() else self.show_files()
+
+    def _remover_for(self, path, opt, back, section=False):
+        """The bin button's action for a section / choice / block."""
+        span = opt.get("span")
+        if not span:
+            return None
+        hidden = opt.get("hidden")
+        body = [MASK] * len(opt["lines"]) if hidden else opt["lines"]
+        if section and opt.get("header"):
+            expect, preview, title = [opt["header"]] + opt["lines"], [opt["header"]] + body, opt["title"]
+        else:
+            expect, preview = opt["lines"], body
+            title = "hidden entry" if opt.get("secret_title") else opt["title"]
+        return lambda: self._confirm_remove(title, preview, lambda: self._cut(path, span, expect), back)
+
+    @staticmethod
+    def _cut(path, span, expect):
+        before = read_text(path)
+        remove_span(path, span[0], span[1], expect)
+        return lambda: path.write_text(before, encoding="utf-8", newline="\r\n")
+
+    def _toggle_hidden(self, path, sec, hide, back):
+        try:
+            before = read_text(path)
+            set_header_hidden(path, sec["line_no"], sec["header"], hide)
+        except (OSError, ValueError) as exc:
+            self.hint.config(text=f"Could not change it: {exc}")
+            return
+        back()
+        self.undo_action = lambda: (path.write_text(before, encoding="utf-8", newline="\r\n"), back())
+        self.hint.config(text=(f"'{sec['title']}' is now hidden (shows **********)" if hide
+                               else f"'{sec['title']}' is now shown") + " \u2022 Ctrl+Z to undo")
+
+    def _remove_file(self, path):
+        def move_away():
+            dest_dir = SNIPPET_DIR / ".backup" / "deleted"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / f"{path.stem} {datetime.now():%Y-%m-%d %H%M%S}.txt"
+            path.replace(dest)
+            return lambda: None if path.exists() else dest.replace(path)
+        n = len(file_lines(path))
+        self._confirm_remove(path.name, [f"{n} line(s) in this file",
+                                         "it is moved to clipboard\\.backup\\deleted\\ (not lost)"],
+                             move_away, self.show_files)
+
+    def _confirm_remove(self, title, preview, do_remove, back):
+        def run():
+            try:
+                undo = do_remove()
+            except (OSError, ValueError) as exc:
+                note.config(text=f"Could not remove: {exc}", fg=WARN)
+                return
+            back()
+            self.undo_action = lambda: (undo(), back())
+            self.hint.config(text=f"Removed '{title}' \u2022 Ctrl+Z to undo")
+        items = [{"key": "1", "label": "\U0001F5D1  Yes, remove it",
+                  "sub": "a backup is kept \u2022 Ctrl+Z right after brings it back", "action": run},
+                 {"key": "2", "label": "Cancel", "sub": "", "action": back}]
+        self.render(f"Remove? \u2022 {title}", items, back=back, hint="1 remove \u2022 2 cancel \u2022 Esc close")
+        box = tk.Frame(self.body, bg=BADGE_BG)
+        box.pack(fill="x", padx=4, pady=(0, 4), before=self.list_frame)
+        shown = preview[:8] + (["\u2026"] if len(preview) > 8 else [])
+        tk.Label(box, text="\n".join(shown) or "(empty)", bg=BADGE_BG, fg=FG, font=("Consolas", 9), anchor="w",
+                 justify="left", wraplength=int((POPUP_WIDTH - 40) * self.scale)).pack(fill="x", padx=8, pady=6)
+        note = self._note(self.body, "")
+        self.select(1)                 # Cancel is highlighted, so Enter never removes by accident
+        self.root.focus_set()
+        self._resize()
+
+    def show_new_file(self):
+        self.render("New text file", [], back=self.show_files, hint="Enter create \u2022 Esc close")
+        lf = self.list_frame
+        for c in lf.winfo_children():
+            c.destroy()
+        self._section(lf, "FILE NAME")
+        var = tk.StringVar()
+        entry = self._entry(lf, var, "e.g.  maria   \u2192  creates maria.txt, shown as 'maria' in the menu")
+        msg = self._note(lf, "")
+
+        def create(_e=None):
+            name = safe_filename(var.get())
+            if not name:
+                msg.config(text="Type a file name.", fg=WARN)
+                return "break"
+            path = SNIPPET_DIR / f"{name}.txt"
+            if path.exists():
+                msg.config(text=f"{path.name} already exists.", fg=WARN)
+                return "break"
+            try:
+                SNIPPET_DIR.mkdir(exist_ok=True)
+                path.write_text("", encoding="utf-8")
+            except OSError as exc:
+                msg.config(text=f"Could not create it: {exc}", fg=WARN)
+                return "break"
+            self.show_view(path, back=self.show_files,
+                           flash=f"\u2713 Created {path.name}. Type your entries (e.g. 'greetings:' then the "
+                                 "lines), then Ctrl+S. Or go back and use \uff0b Add entry.")
+            return "break"
+        entry.bind("<Return>", create)
+        self._buttons(lf, [("Create \u2713", create, BORDER), ("Cancel", self.show_files, BADGE_BG)])
+        entry.focus_set()
+        self.initial_focus = entry
+        self._resize()
+
+    def _copy_twice_switch(self, parent):
+        """On / Off for 'Ctrl+C twice opens Save copied text' (remembered)."""
+        row = tk.Frame(parent, bg=BG)
+        row.pack(fill="x", padx=6, pady=(6, 0))
+        tk.Label(row, text="Ctrl+C twice opens this save form:", bg=BG, fg=SUB, font=(FONT, 8)).pack(side="left")
+        chips = {}
+
+        def draw():
+            on = self.settings.get("copy_twice", True)
+            for value, lbl in chips.items():
+                lbl.config(bg=BORDER if value == on else BADGE_BG)
+
+        def pick(value):
+            self.settings["copy_twice"] = value
+            save_settings(self.settings)
+            draw()
+        for value, text in ((False, "Off"), (True, "On")):
+            lbl = tk.Label(row, text=text, bg=BADGE_BG, fg=FG, font=(FONT, 8, "bold"), cursor="hand2", padx=8, pady=1)
+            lbl.pack(side="right", padx=(4, 0))
+            lbl.bind("<Button-1>", lambda e, v=value: pick(v))
+            chips[value] = lbl
+        draw()
+
     # ---- small form widgets
     def _section(self, parent, text):
         tk.Label(parent, text=text, bg=BG, fg=SUB, font=(FONT, 8, "bold"), anchor="w").pack(
@@ -1346,11 +1578,13 @@ class Popup:
             b.bind("<Button-1>", lambda e, c=cmd: c())
 
     # ---- save copied text (Ctrl+C twice, or "+" in the menu)
-    def show_save(self, text):
-        last = SNIPPET_DIR / self.settings.get("last_save", FREESTYLE_FILE.name)
-        target = last if last.exists() else FREESTYLE_FILE
-        self.save = {"text": text.strip("\r\n"), "target": target, "how": "new", "kind": "all", "sec": 0,
-                     "name": tk.StringVar(), "filename": tk.StringVar()}
+    def show_save(self, text, target=None, how="new", sec=0, title="Save copied text", back=None):
+        if target is None:
+            last = SNIPPET_DIR / self.settings.get("last_save", FREESTYLE_FILE.name)
+            target = last if last.exists() else FREESTYLE_FILE
+        self.save = {"text": text.strip("\r\n"), "target": target, "how": how, "kind": "all", "sec": sec,
+                     "name": tk.StringVar(), "filename": tk.StringVar(), "title": title,
+                     "back": back or self.show_files}
         for var in (self.save["name"], self.save["filename"]):
             var.trace_add("write", lambda *a: self._save_preview())
         self._render_save()
@@ -1367,7 +1601,7 @@ class Popup:
 
     def _render_save(self):
         s = self.save
-        self.render("Save copied text", [], back=self.show_files, hint="Enter save • Esc close • ? help")
+        self.render(s["title"], [], back=s["back"], hint="Enter save \u2022 Esc close \u2022 ? help")
         self.width = SAVE_WIDTH
         lf = self.list_frame
         for c in lf.winfo_children():
@@ -1434,7 +1668,8 @@ class Popup:
                                 anchor="w", padx=8, pady=6, wraplength=int((SAVE_WIDTH - 50) * self.scale))
         s["preview"].pack(fill="x", padx=6)
         s["msg"] = self._note(lf, "")
-        self._buttons(lf, [("Save ✓", self.do_save, BORDER), ("Cancel", self.show_files, BADGE_BG)])
+        self._buttons(lf, [("Save \u2713", self.do_save, BORDER), ("Cancel", s["back"], BADGE_BG)])
+        self._copy_twice_switch(lf)
         self._save_preview()
         empty = [e for e in entries if not e.get()]
         self.initial_focus = empty[0] if empty else box
@@ -1591,8 +1826,10 @@ class Popup:
         colors = {"all": BORDER, "choices": "#7ee2a8", "blocks": "#ffcf6e"}
         confirm = {"armed": False}
 
+        state = {"baseline": original}
+
         def dirty():
-            return editing and txt.winfo_exists() and txt.get("1.0", "end-1c").rstrip("\n") != original
+            return editing and txt.winfo_exists() and txt.get("1.0", "end-1c").rstrip("\n") != state["baseline"]
 
         def guarded(action):
             """Run action, but warn once first if there are unsaved changes."""
@@ -1605,8 +1842,12 @@ class Popup:
                 action()
             return run
 
-        leave = guarded(back)
-        self.render(f"View • {path.name}", [], back=leave,
+        def discard_and_back():
+            self.drafts.pop(path, None)
+            self.on_leave = None
+            back()
+        leave = guarded(discard_and_back)
+        self.render(f"View \u2022 {path.name}", [], back=leave,
                     hint=("Ctrl+S save • Ctrl+Z undo • Esc close" if editing
                           else "scroll or ↑↓ • Backspace back • Esc close"))
         self.width = VIEW_WIDTH
@@ -1716,6 +1957,12 @@ class Popup:
                     confirm["armed"] = False
 
         txt.insert("1.0", original)
+        state["baseline"] = txt.get("1.0", "end-1c").rstrip("\n")   # compare with what the box really holds
+        draft = self.drafts.get(path)
+        if editing and draft is not None and draft != state["baseline"]:
+            txt.delete("1.0", "end")
+            txt.insert("1.0", draft)       # your unsaved changes from last time
+            flash = flash or "\u21ba Restored the changes you hadn't saved yet. Save keeps them, Back throws them away."
         txt.edit_reset()
         paint()
         for ev in ("<Button-1>", "<B1-Motion>", "<Double-Button-1>"):
@@ -1811,6 +2058,8 @@ class Popup:
             except OSError as exc:
                 status.config(text=f"Could not save: {exc}", fg=WARN)
                 return "break"
+            self.drafts.pop(path, None)
+            self.on_leave = None
             self.show_view(path, back, flash="✓ Saved. The old version is in clipboard\\.backup\\")
             return "break"
 
@@ -1820,7 +2069,14 @@ class Popup:
             txt.bind("<<Paste>>", lambda e: self.root.after(10, paint))
             txt.bind("<Control-s>", save)
             txt.bind("<Control-S>", save)
-            self.leave_guard = lambda: not dirty()
+
+            def keep_draft():
+                if txt.winfo_exists():
+                    if dirty():
+                        self.drafts[path] = txt.get("1.0", "end-1c").rstrip("\n")
+                    else:
+                        self.drafts.pop(path, None)
+            self.on_leave = keep_draft
         else:
             txt.config(state="disabled")      # read-only, but you can still select and copy
 
@@ -1887,9 +2143,12 @@ class Popup:
                        "\U0001F441 View         see the whole file; Edit \u270e to change + save\n"
                        "Esc / Ctrl+Z    close, or STOP while it is sending\n"
                        "Send / Paste    Send presses Enter; Paste only puts it in the box\n"
+                       "\uff0b / \U0001F5D1          add or remove files and entries (Ctrl+Z undoes a remove)\n"
                        "name*:          * before the colons HIDES the text (shows **********)\n"
+                       "Hide / Show     buttons on each section add / remove that * for you\n"
                        "Type each key   for boxes that block paste (choose in Confirm/Edit)\n"
                        "{name} {greeting} {day} {date} {time} {clipboard}   filled in when sent", mono=True)
+        self._copy_twice_switch(lf)
         self._buttons(lf, [("Back", self.show_files, BADGE_BG),
                            ("Open clipboard folder", lambda: (os.startfile(SNIPPET_DIR), self.hide()), BORDER)])
         self.root.focus_set()
