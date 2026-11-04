@@ -17,11 +17,17 @@ Header types (colons at the end of the line):
   name:::    opens a searchable menu; blocks separated by blank lines are the choices
 
 Send modes (chip in the popup header, or Tab; remembered in clipboard_settings.json):
+  (Confirm and Edit have Send = with Enter, and Paste = into the box only, no Enter)
+  Input method: Fast type / Type each key (for boxes that block paste) / Clipboard
   Auto send   click = send straight away
   Confirm     click = preview showing the target window, then Send / Edit / Cancel
   Edit first  click = open the editor
   Edit button or right-click on a row always opens the editor.
   "Send as one message" = all lines in ONE chat message (Shift+Enter between lines).
+
+Hidden sections: put * before the colons (password*:  logins*::  keys*:::). The text shows as
+********** everywhere in the popup (and as bars in View, with a "show hidden" toggle) but the
+real text is what gets typed. Hidden text is not searchable and has no Edit button.
 
 Placeholders in the .txt files: {name} {greeting} {date} {day} {time} {clipboard}
 
@@ -52,15 +58,24 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime
 from pathlib import Path
 
 # ----------------------------------------------------------------- settings
 SNIPPET_DIR = Path(__file__).resolve().parent / "clipboard"
-# "type"  = types each line directly (reliable: keystrokes stay in order, no clipboard race)
-# "paste" = puts each line on the clipboard + Ctrl+V. Apps like Teams read the clipboard
-#           late, so a fast next line can overwrite it (lost or doubled lines). Use PASTE_DELAY.
-MODE = "type"
+# How the text gets into the box (pick it in the Confirm / Edit screens; remembered):
+#   fast      = types the text in one go (quick; the default)
+#   keys      = presses real keys one by one, like a person typing. Slower, but works in boxes
+#               that block paste or ignore fast typing (some web forms, Citrix, remote desktop)
+#   clipboard = puts each line on the clipboard + Ctrl+V. Apps like Teams read the clipboard
+#               late, so a fast next line can overwrite it (lost or doubled lines). Use PASTE_DELAY.
+INPUT_METHODS = {
+    "fast":      ("Fast type",     "types the whole line in one go (quickest)"),
+    "keys":      ("Type each key", "real key presses one by one; for boxes that block paste"),
+    "clipboard": ("Clipboard",     "copies each line and presses Ctrl+V"),
+}
+KEY_DELAY = 0.012         # seconds between key presses in "Type each key"
 STEP_DELAY = 0.1         # seconds between lines in "type" mode
 BEFORE_ENTER = 0.1       # wait after a line is typed/pasted so the app has it in the box before Enter
 AFTER_ENTER = 0.1        # wait after Enter so the app can send the message and clear the box
@@ -74,6 +89,7 @@ PASTE_DELAY = 0.1         # seconds to wait after each Ctrl+V in "paste" mode be
 RESTORE_CLIPBOARD = True  # put your original clipboard text back afterwards
 POPUP_WIDTH = 360         # px at 100% scaling
 SAVE_WIDTH = 440          # the "Save copied text" form is a bit wider
+VIEW_WIDTH = 700          # the View / Edit file screen
 COPY_TWICE_WINDOW = 0.6   # Ctrl+C twice within this many seconds opens "Save copied text"
 FREESTYLE_FILE = SNIPPET_DIR / "freestyle.txt"
 SETTINGS_FILE = Path(__file__).resolve().parent / "clipboard_settings.json"   # remembers your choices
@@ -86,7 +102,8 @@ SEND_MODES = {
     "confirm": ("Confirm",   "Click shows a preview; you press Send"),
     "edit":    ("Edit first", "Click opens the editor"),
 }
-DEFAULT_SETTINGS = {"mode": "auto", "one_message": False, "last_save": "freestyle.txt"}
+DEFAULT_SETTINGS = {"mode": "confirm", "one_message": False, "last_save": "freestyle.txt",
+                    "input": "fast"}
 
 
 def load_settings():
@@ -96,7 +113,9 @@ def load_settings():
     except (OSError, ValueError):
         pass
     if s.get("mode") not in SEND_MODES:
-        s["mode"] = "auto"
+        s["mode"] = "confirm"
+    if s.get("input") not in INPUT_METHODS:
+        s["input"] = "fast"
     return s
 
 
@@ -305,6 +324,39 @@ def type_text(text):
         _send(*events)
 
 
+user32.VkKeyScanW.argtypes = [wt.WCHAR]
+user32.VkKeyScanW.restype = wt.SHORT
+user32.GetKeyState.argtypes = [ctypes.c_int]
+user32.GetKeyState.restype = wt.SHORT
+VK_CAPITAL, VK_TAB = 0x14, 0x09
+
+
+def type_keys(text, abort=None, delay=KEY_DELAY):
+    """Types like a person: one real key press per character (with Shift where needed).
+    Characters that have no key on this keyboard layout are typed as Unicode instead."""
+    caps = bool(user32.GetKeyState(VK_CAPITAL) & 1)
+    for ch in text:
+        if abort is not None and abort.is_set():
+            return
+        if ch == "\t":
+            vk, state = VK_TAB, 0
+        else:
+            res = user32.VkKeyScanW(ch)
+            vk, state = res & 0xFF, (res >> 8) & 0xFF
+            if res == -1 or (state & 6) == 2:     # no key for it, or a Ctrl-only shortcut: use Unicode
+                type_text(ch)
+                time.sleep(delay)
+                continue
+        shift = bool(state & 1)
+        if caps and ch.isalpha():
+            shift = not shift                     # Caps Lock flips letters
+        mods = ([VK_SHIFT] if shift else []) + ([VK_CONTROL] if state & 2 else []) + \
+               ([VK_MENU] if state & 4 else [])
+        _send(*[_key(m) for m in mods], _key(vk))
+        _send(_key(vk, flags=KEYEVENTF_KEYUP), *[_key(m, flags=KEYEVENTF_KEYUP) for m in reversed(mods)])
+        time.sleep(delay)
+
+
 def wait_modifiers_released(timeout=3.0):
     end = time.time() + timeout
     while time.time() < end and any(is_down(k) for k in (VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN)):
@@ -447,7 +499,8 @@ def read_text(path):
 def list_files():
     if not SNIPPET_DIR.is_dir():
         return []
-    return sorted(SNIPPET_DIR.glob("*.txt"), key=lambda p: p.stem.lower())
+    # freestyle.txt always first (so it is always "1"), then the rest A-Z
+    return sorted(SNIPPET_DIR.glob("*.txt"), key=lambda p: (p.name.lower() != "freestyle.txt", p.stem.lower()))
 
 
 def split_blocks(raw_lines):
@@ -466,6 +519,7 @@ def split_blocks(raw_lines):
 
 
 SECTION_KINDS = {1: "all", 2: "choices"}   # 3+ colons = "blocks"
+MASK = "**********"      # what hidden text looks like in the popup ('name*:' sections)
 
 
 def parse_sections(path):
@@ -479,23 +533,26 @@ def parse_sections(path):
         line = raw.strip()
         if line.endswith(":"):
             colons = len(line) - len(line.rstrip(":"))
-            current = {"title": line.rstrip(":").strip() or line,
+            name = line.rstrip(":").strip()
+            hidden = name.endswith("*")          # 'password*:' -> content shown as ********
+            current = {"title": name.rstrip("*").strip() or line, "hidden": hidden,
                        "kind": SECTION_KINDS.get(colons, "blocks"), "raw": []}
             sections.append(current)
             continue
         if current is None:
             if not line:
                 continue
-            current = {"title": "(no header)", "kind": "all", "raw": []}   # text before the first header
+            current = {"title": "(no header)", "kind": "all", "hidden": False, "raw": []}   # text before the first header
             sections.append(current)
         current["raw"].append(raw)
     for sec in sections:
         raw = sec.pop("raw")
         sec["lines"] = [l.strip() for l in raw if l.strip()]
+        secret = {"hidden": sec["hidden"], "secret_title": sec["hidden"]}   # option titles ARE the text
         if sec["kind"] == "choices":
-            sec["options"] = [{"title": l, "lines": [l]} for l in sec["lines"]]
+            sec["options"] = [{"title": l, "lines": [l], **secret} for l in sec["lines"]]
         elif sec["kind"] == "blocks":
-            sec["options"] = [{"title": b[0], "lines": b} for b in split_blocks(raw)]
+            sec["options"] = [{"title": b[0], "lines": b, **secret} for b in split_blocks(raw)]
     return sections
 
 
@@ -561,7 +618,14 @@ def header_info(line):
     if not s.endswith(":"):
         return None
     colons = len(s) - len(s.rstrip(":"))
-    return s.rstrip(":").strip() or s, SECTION_KINDS.get(colons, "blocks")
+    name = s.rstrip(":").strip()
+    return name.rstrip("*").strip() or s, SECTION_KINDS.get(colons, "blocks")
+
+
+def header_hidden(line):
+    """True for 'name*:' / 'name*::' / 'name*:::' headers (their text is hidden in the popup)."""
+    s = line.strip()
+    return s.endswith(":") and s.rstrip(":").strip().endswith("*")
 
 
 def section_ranges(lines):
@@ -596,6 +660,8 @@ def write_snippet_file(path, lines):
 BG, ROW, HOVER, BORDER = "#1e2230", "#1e2230", "#323a52", "#5b8def"
 FG, SUB, BADGE_BG, DIM = "#eef1f8", "#8f98ad", "#2c3349", "#5c6479"
 WARN = "#ff8a80"
+# each file (except freestyle) gets its own colour in the main menu, so they are easy to tell apart
+FILE_COLORS = ["#7ee2a8", "#ffcf6e", "#c3a6ff", "#6fd3ff", "#ff9e80", "#ff8fc7", "#b5e06b", "#f6a5ff"]
 FONT = "Segoe UI"
 
 
@@ -626,6 +692,10 @@ class Popup:
         self._bs_was_empty = False
         self.width = POPUP_WIDTH
         self.undo_action = None
+        self.viewer = None
+        self.view_editing = False
+        self.leave_guard = None
+        self.initial_focus = None
         self.save = None
         self.current_stem = ""
         self.settings = load_settings()
@@ -675,6 +745,7 @@ class Popup:
         r.bind("<Return>", lambda e: self.activate(self.sel))
         r.bind("<Right>", lambda e: None if self._in_search() else self.activate(self.sel))
         r.bind("<Key>", self.on_key)
+        r.bind("<MouseWheel>", self._wheel)
         r.bind("<Control-z>", lambda e: self.undo_action() if self.undo_action else None)
         r.bind("<Control-Z>", lambda e: self.undo_action() if self.undo_action else None)
         r.bind("<FocusOut>", lambda e: r.after(250, self._check_focus))
@@ -743,13 +814,38 @@ class Popup:
         force_foreground(self.hwnd)
         self.root.focus_force()
         self.visible = True
+        self._focus_typing_box()
+        # Windows sometimes hands focus over a moment later: make sure again
+        self.root.after(60, self._focus_typing_box)
+        self.root.after(200, self._focus_typing_box)
+
+    def _focus_typing_box(self):
+        """Put the cursor in the search box (or the screen's text box) so you can type right away."""
+        if not self.visible:
+            return
+        target = self.search_entry if self.search_entry is not None else self.initial_focus
+        if target is None or not target.winfo_exists():
+            return
+        current = self.root.focus_get()
+        if current is not None and current is not self.root and current is not target:
+            return                       # you already clicked into another box: leave it
+        if user32.GetForegroundWindow() != self.hwnd:
+            force_foreground(self.hwnd)
+        target.focus_force()
+        if isinstance(target, tk.Entry):
+            target.icursor("end")
 
     def hide(self):
+        if self.leave_guard and not self.leave_guard():
+            self.go_back()                 # shows the "unsaved changes" warning first
+            return
         self.root.withdraw()
         self.visible = False
 
     def _check_focus(self):
         if self.visible and self.root.focus_get() is None:
+            if self.leave_guard and not self.leave_guard():
+                return                     # editing with unsaved changes: keep the window open
             self.hide()
 
     def _place_at_cursor(self):
@@ -791,6 +887,10 @@ class Popup:
         self.title_lbl.config(text=title)
         self.width = POPUP_WIDTH
         self.undo_action = None
+        self.viewer = None
+        self.view_editing = False
+        self.leave_guard = None
+        self.initial_focus = None
         self.back_action = back
         if back:
             self.back_lbl.pack(side="left", before=self.title_lbl, padx=(0, 6))
@@ -812,16 +912,31 @@ class Popup:
             var.trace_add("write", lambda *a: self._filter(var.get()))
             # runs before the Entry deletes the character: remember if it was already empty
             entry.bind("<BackSpace>", lambda e: setattr(self, "_bs_was_empty", not entry.get()))
+            entry.bind("<Key>", self._search_shortcut)
             self.search_entry = entry
             entry.focus_set()
+            tk.Label(box, text="type to search", bg=BADGE_BG, fg=DIM, font=(FONT, 7)).pack(side="right", padx=6)
         self.list_frame = tk.Frame(self.body, bg=BG)
         self.list_frame.pack(fill="both", expand=True)
         self._render_rows(items)
 
+    def _search_shortcut(self, e):
+        """With the search box still empty, 0-9 / + / ? pick items; once you type, it's all search."""
+        if self.search_entry.get() or not e.char:
+            return None
+        for i, it in enumerate(self.items):
+            if it.get("key") and it["key"] == e.char:
+                self.activate(i)
+                return "break"
+        return None
+
     def _filter(self, query):
         words = query.lower().split()
+
+        def haystack(it):
+            return (it.get("text") or f"{it['label']} {it.get('sub', '')}").lower()
         shown = [it for it in self.all_items
-                 if all(w in it.get("text", it["label"]).lower() for w in words)]
+                 if it.get("always") or all(w in haystack(it) for w in words)]
         self._render_rows(shown)
 
     def _in_search(self):
@@ -841,7 +956,9 @@ class Popup:
     def _render_rows(self, items, limit=12):
         for child in self.list_frame.winfo_children():
             child.destroy()
-        self.items, self.rows = items[:limit], []
+        normal = [it for it in items if not it.get("always")]
+        hidden = max(0, len(normal) - limit)
+        self.items, self.rows = normal[:limit] + [it for it in items if it.get("always")], []
         wrap = int((POPUP_WIDTH - 70) * self.scale)
 
         if not items:
@@ -856,11 +973,21 @@ class Popup:
                 edit.bind("<Button-1>", lambda e, f=item["edit"]: f())
                 edit.bind("<Enter>", lambda e, w=edit: w.config(bg=HOVER, fg=FG))
                 edit.bind("<Leave>", lambda e, w=edit: w.config(bg=BADGE_BG, fg=BORDER))
-            badge = tk.Label(row, text=item.get("key", ""), width=2, bg=BADGE_BG, fg=FG, font=(FONT, 9, "bold"))
+            color = item.get("color")
+            badge = tk.Label(row, text=item.get("key", ""), width=2, bg=color or BADGE_BG,
+                             fg=BG if color else FG, font=(FONT, 9, "bold"))
             badge.pack(side="left", padx=(6, 8), pady=6, anchor="n")
+            if item.get("view"):     # eye button on the right: view / edit the whole file
+                eye = tk.Label(row, text="👁", bg=BADGE_BG, fg=FG, font=(FONT, 11),
+                               cursor="hand2", padx=6, pady=1)
+                eye.pack(side="right", padx=(4, 6), pady=6, anchor="n")
+                eye.bind("<Button-1>", lambda e, f=item["view"]: (f(), "break")[1])
+                eye.bind("<Enter>", lambda e, w=eye: w.config(bg=BORDER))
+                eye.bind("<Leave>", lambda e, w=eye: w.config(bg=BADGE_BG))
             text = tk.Frame(row, bg=ROW)
             text.pack(side="left", fill="x", expand=True, pady=4)
-            main = tk.Label(text, text=item["label"], bg=ROW, fg=FG, font=(FONT, 10), anchor="w", justify="left")
+            main = tk.Label(text, text=item["label"], bg=ROW, fg=color or FG,
+                            font=(FONT, 10, "bold") if color else (FONT, 10), anchor="w", justify="left")
             main.pack(fill="x")
             widgets = [row, text, main]
             if item.get("sub"):
@@ -873,9 +1000,11 @@ class Popup:
                 w.bind("<Enter>", lambda e, i=i: self.select(i))
                 if item.get("edit"):   # right-click = edit, whatever the mode
                     w.bind("<Button-3>", lambda e, f=item["edit"]: f())
+                elif item.get("context"):   # right-click on a file = view it
+                    w.bind("<Button-3>", lambda e, f=item["context"]: f())
             self.rows.append(widgets)
-        if len(items) > limit:
-            tk.Label(self.list_frame, text=f"+ {len(items) - limit} more, type to narrow down",
+        if hidden:
+            tk.Label(self.list_frame, text=f"+ {hidden} more, type to narrow down",
                      bg=BG, fg=DIM, font=(FONT, 8)).pack(pady=(2, 0))
         self.sel = 0
         self.select(self._first_selectable())
@@ -897,7 +1026,17 @@ class Popup:
                 w.config(bg=color)
 
     def move(self, d):
+        if self.viewer is not None and self.viewer.winfo_exists():
+            if not self.view_editing:
+                self.viewer.yview_scroll(d * 3, "units")     # arrows scroll the read-only view
+            return
         self.select(self.sel + d)
+
+    def _wheel(self, e):
+        if self.viewer is not None and self.viewer.winfo_exists():
+            self.viewer.yview_scroll(-int(e.delta / 120) * 3, "units")
+            return "break"
+        return None
 
     def activate(self, i):
         if 0 <= i < len(self.items):
@@ -912,8 +1051,11 @@ class Popup:
                 return
 
     def go_back(self, key=None):
-        if key and (self._in_editor() or self._in_form_entry()
-                    or isinstance(self.root.focus_get(), tk.Text)):
+        focus = self.root.focus_get()
+        if key and focus is self.viewer and (self.view_editing or key == "Left"):
+            return                     # editing (or Left scrolling the read-only view)
+        if key and focus is not self.viewer and (self._in_editor() or self._in_form_entry()
+                                                 or isinstance(focus, tk.Text)):
             return                     # Backspace/Left edit the text in the box
         if key and self._in_search():
             # Left moves the cursor; Backspace only goes back if the box was ALREADY empty
@@ -927,6 +1069,7 @@ class Popup:
     def show_files(self):
         items = [{"key": "0", "label": "Paste clipboard normally", "sub": self._clip_preview(),
                   "action": self.normal_paste}]
+        colored = 0
         for n, path in enumerate(list_files(), start=1):
             try:
                 secs, free = load_options(path)
@@ -934,18 +1077,29 @@ class Popup:
                        else f"{len(secs)} section(s): " + ", ".join(s["title"] for s in secs))
             except OSError as exc:
                 secs, sub = [], f"cannot read: {exc}"
-            items.append({"key": str(n) if n < 10 else "", "label": path.stem, "sub": sub,
-                          "action": lambda p=path: self.show_sections(p)})
-        items.append({"key": "+", "label": "＋ Save copied text as a snippet",
+            color = None
+            if path.name.lower() != "freestyle.txt":
+                color = FILE_COLORS[colored % len(FILE_COLORS)]
+                colored += 1
+            items.append({"key": str(n) if n < 10 else "", "label": path.stem, "color": color,
+                          "sub": sub,
+                          "text": f"{path.stem} {sub}",
+                          "action": lambda p=path: self.show_sections(p),
+                          "view": lambda p=path: self.show_view(p, back=self.show_files),
+                          "context": lambda p=path: self.show_view(p, back=self.show_files)})
+        items.append({"key": "+", "label": "＋ Save copied text as a snippet", "always": True,
                       "sub": "tip: press Ctrl+C twice quickly anywhere to open this",
                       "action": lambda: self.show_save(clip_get() or "")})
-        items.append({"key": "?", "label": "?  How snippet files work",
+        items.append({"key": "?", "label": "?  How snippet files work", "always": True,
                       "sub": "name:  name::  name:::  explained with examples",
                       "action": self.show_help})
-        hint = "0-9 / + / ? • ↑↓ Enter • Tab mode • Esc close"
+        items.append({"key": "", "label": "⌨  Type the clipboard", "always": True,   # last row
+                      "sub": "for boxes that block paste: types what you copied key by key (no Enter)",
+                      "action": self.type_clipboard})
+        hint = "type to search this list • 0-9 + ? • ↑↓ Enter • Tab mode"
         if len(items) == 3:
             items[0]["sub"] = f"No .txt files yet in {SNIPPET_DIR} - use ＋ to create one"
-        self.render("Clipboard snippets", items, hint=hint)
+        self.render("Clipboard snippets", items, hint=hint, search=True)
 
     # ---- send modes
     def _update_mode_chip(self):
@@ -959,11 +1113,11 @@ class Popup:
         self._update_mode_chip()
         self.hint.config(text=f"Mode: {SEND_MODES[self.settings['mode']][1]} • Tab to switch")
 
-    def choose(self, title, lines, back):
+    def choose(self, title, lines, back, hidden=False):
         """What a click on a snippet does, depending on the mode chip."""
         mode = self.settings["mode"]
-        if mode == "confirm":
-            self.show_confirm(title, lines, back)
+        if mode == "confirm" or (hidden and mode == "edit"):   # hidden text never opens the editor
+            self.show_confirm(title, lines, back, hidden=hidden)
         elif mode == "edit":
             self.show_editor(title, lines, back)
         else:
@@ -982,13 +1136,34 @@ class Popup:
                        selectcolor=BADGE_BG, font=(FONT, 8), anchor="w", bd=0,
                        highlightthickness=0).pack(fill="x", padx=2, pady=(0, 4))
 
+    def _input_chips(self, parent):
+        """'How to put it in' chooser: Fast type / Type each key / Clipboard (remembered)."""
+        holder = tk.Frame(parent, bg=BG)
+        holder.pack(fill="x")
+
+        def draw():
+            for c in holder.winfo_children():
+                c.destroy()
+            tk.Label(holder, text="HOW TO PUT IT IN", bg=BG, fg=SUB, font=(FONT, 7, "bold"),
+                     anchor="w").pack(fill="x", padx=2, pady=(2, 0))
+            self._chips(holder, [(k, v[0]) for k, v in INPUT_METHODS.items()], self.settings["input"], pick)
+            tk.Label(holder, text=INPUT_METHODS[self.settings["input"]][1], bg=BG, fg=DIM, font=(FONT, 7),
+                     anchor="w").pack(fill="x", padx=4)
+
+        def pick(value):
+            self.settings["input"] = value
+            save_settings(self.settings)
+            draw()
+            self._resize()
+        draw()
+
     def _target_label(self):
         exe = window_exe(self.target) if self.target else ""
         title = window_title(self.target) if self.target else ""
         title = title if len(title) <= 40 else title[:39] + "…"
         return f"→ {title or exe or 'previous window'}"
 
-    def show_confirm(self, title, lines, back):
+    def show_confirm(self, title, lines, back, hidden=False):
         filled = fill_placeholders(lines, self.current_stem)
 
         def summary():
@@ -996,18 +1171,24 @@ class Popup:
             return f"1 message ({n} lines)" if self.settings["one_message"] and n > 1 else f"{n} message(s)"
 
         items = [
-            {"key": "1", "label": "Send ⏎", "sub": "", "action": lambda: self.send_lines(lines)},
-            {"key": "2", "label": "Edit", "sub": "change the text first",
-             "action": lambda: self.show_editor(title, lines, back)},
-            {"key": "3", "label": "Cancel", "sub": "", "action": back},
+            {"key": "1", "label": "Send \u23ce", "sub": "puts it in, then presses Enter",
+             "action": lambda: self.send_lines(lines)},
+            {"key": "2", "label": "Paste", "sub": "puts it in the box only, no Enter (you send it)",
+             "action": lambda: self.send_lines(lines, enter=False)},
         ]
-        self.render(f"Send? • {title}", items, back=back, hint="Enter send • 2 edit • Esc close")
+        if not hidden:
+            items.append({"key": "3", "label": "Edit", "sub": "change the text first",
+                          "action": lambda: self.show_editor(title, lines, back)})
+        items.append({"key": str(len(items) + 1), "label": "Cancel", "sub": "", "action": back})
+        self.render(f"Send? \u2022 {title}", items, back=back,
+                    hint="Enter send \u2022 2 paste \u2022 Esc close" if hidden
+                    else "Enter send \u2022 2 paste \u2022 3 edit \u2022 Esc close")
         preview = tk.Frame(self.body, bg=BADGE_BG)
         preview.pack(fill="x", padx=4, pady=(0, 4), before=self.list_frame)
         tk.Label(preview, text=self._target_label(), bg=BADGE_BG, fg=BORDER, font=(FONT, 8, "bold"),
                  anchor="w").pack(fill="x", padx=8, pady=(6, 2))
         wrap = int((POPUP_WIDTH - 50) * self.scale)
-        for i, line in enumerate(filled, start=1):
+        for i, line in enumerate([MASK] * len(filled) if hidden else filled, start=1):
             tk.Label(preview, text=f"{i}.  {line}", bg=BADGE_BG, fg=FG, font=(FONT, 9), anchor="w",
                      justify="left", wraplength=wrap).pack(fill="x", padx=8)
         count = tk.Label(preview, text=summary(), bg=BADGE_BG, fg=SUB, font=(FONT, 8), anchor="w")
@@ -1015,6 +1196,7 @@ class Popup:
         opts = tk.Frame(self.body, bg=BG)
         opts.pack(fill="x", padx=4, before=self.list_frame)
         self._one_message_toggle(opts, on_change=lambda: count.config(text=summary()))
+        self._input_chips(opts)
         self._resize()
 
     def show_sections(self, path):
@@ -1028,32 +1210,43 @@ class Popup:
             if kind in ("choices", "blocks"):      # 'name::' or 'name:::' -> opens another menu
                 opts = sec["options"]
                 what = "choice(s)" if kind == "choices" else "snippet(s), searchable"
-                items.append({"key": key, "label": f"{sec['title']}  ›",
-                              "sub": f"menu • {len(opts)} {what}",
-                              "text": " ".join([sec["title"]] + sec["lines"]),
+                lock = "\U0001F512 " if sec.get("hidden") else ""
+                items.append({"key": key, "label": f"{lock}{sec['title']}  \u203a",
+                              "sub": f"menu \u2022 {len(opts)} {what}" + ("  \u2022 hidden" if lock else ""),
+                              "text": sec["title"] if lock else " ".join([sec["title"]] + sec["lines"]),
                               "action": lambda s=sec: self.show_menu(path, s)})
             else:
                 items.append(self._snippet_item(sec, key, freestyle, back))
-        hint = ("Type to search • Enter pick • right-click edit • Tab mode" if freestyle
-                else "Click pick • right-click edit • Tab mode • Backspace back")
-        self.render(path.stem, items, back=self.show_files, hint=hint, search=freestyle)
+        items.append({"key": "", "label": "\U0001F441  View whole file", "always": True,
+                      "sub": f"see and edit {path.name}",
+                      "action": lambda: self.show_view(path, back=back)})
+        hint = ("type to search • Enter pick • right-click edit • Tab mode" if freestyle
+                else "type to search • 1-9 pick • right-click edit • Tab mode")
+        self.render(path.stem, items, back=self.show_files, hint=hint, search=True)
 
     def show_menu(self, path, sec):
         """Submenu for 'name::' (one choice per line) and 'name:::' (blocks, searchable)."""
         blocks = sec["kind"] == "blocks"
         opts = sec["options"]
-        search = blocks or len(opts) > 9
         back = lambda: self.show_menu(path, sec)
-        items = [self._snippet_item(o, "" if search else str(n), blocks, back)
+        items = [self._snippet_item(o, "" if blocks or n > 9 else str(n), blocks, back)
                  for n, o in enumerate(opts, start=1)]
-        hint = ("Type to search • Enter pick • right-click edit" if search
-                else "1-9 pick • right-click edit • Tab mode • Backspace back")
+        hint = ("type to search • Enter pick • right-click edit • Backspace back" if blocks
+                else "type to search • 1-9 pick • right-click edit • Backspace back")
         self.render(f"{path.stem} › {sec['title']}", items,
-                    back=lambda: self.show_sections(path), hint=hint, search=search)
+                    back=lambda: self.show_sections(path), hint=hint, search=True)
 
     def _snippet_item(self, opt, key, block_style, back):
         """A row that sends its lines (respecting the Auto/Confirm/Edit mode)."""
         lines = opt["lines"]
+        if opt.get("hidden"):
+            # hidden ('name*:'): never show the text, keep it out of search, no Edit
+            secret_title = bool(opt.get("secret_title"))
+            title = "hidden" if secret_title else opt["title"]
+            return {"key": key, "label": "\U0001F512 " + (MASK if secret_title else title),
+                    "sub": f"hidden \u2022 {len(lines)} line(s)   {MASK}",
+                    "text": "\U0001F512" if secret_title else title,
+                    "action": lambda: self.choose(title, lines, back=back, hidden=True)}
         if block_style:   # label = first line, sub = the rest
             rest = lines[1:4]
             sub = (f"{len(lines)} line(s) • " + " ↵ ".join(rest) + (" …" if len(lines) > 4 else "")
@@ -1071,8 +1264,8 @@ class Popup:
     def show_editor(self, title, lines, back):
         """Edit the lines before sending. Each non-blank line is sent, then Enter."""
         lines = fill_placeholders(lines, self.current_stem)
-        self.render(f"Edit • {title}", [], back=back,
-                    hint="Ctrl+Enter send • Esc close")
+        self.render(f"Edit \u2022 {title}", [], back=back,
+                    hint="Ctrl+Enter send \u2022 Ctrl+Shift+Enter paste \u2022 Esc close")
         for child in self.list_frame.winfo_children():
             child.destroy()
         tk.Label(self.list_frame, text=self._target_label(), bg=BG, fg=BORDER, font=(FONT, 8, "bold"),
@@ -1087,22 +1280,27 @@ class Popup:
         editor.edit_reset()
         self.editor = editor
 
-        def send(_e=None):
+        def send(_e=None, enter=True):
             out = [l.strip() for l in editor.get("1.0", "end").splitlines() if l.strip()]
             if out:
-                self.send_lines(out)
+                self.send_lines(out, enter=enter)
             return "break"
 
         self._one_message_toggle(self.list_frame)
+        self._input_chips(self.list_frame)
         buttons = tk.Frame(self.list_frame, bg=BG)
-        buttons.pack(fill="x", padx=4, pady=(0, 2))
-        for label, cmd, color in (("Send ⏎", send, BORDER), ("Cancel", lambda e=None: back(), BADGE_BG)):
+        buttons.pack(fill="x", padx=4, pady=(6, 2))
+        for label, cmd, color in (("Send \u23ce", send, BORDER),
+                                  ("Paste (no Enter)", lambda e=None: send(enter=False), BADGE_BG),
+                                  ("Cancel", lambda e=None: back(), BADGE_BG)):
             b = tk.Label(buttons, text=label, bg=color, fg=FG, font=(FONT, 9, "bold"),
                          cursor="hand2", padx=12, pady=4)
             b.pack(side="right", padx=(6, 0))
             b.bind("<Button-1>", lambda e, c=cmd: c())
         editor.bind("<Control-Return>", send)
+        editor.bind("<Control-Shift-Return>", lambda e: send(enter=False))
         editor.focus_set()
+        self.initial_focus = editor
         editor.mark_set("insert", "end-1c")
         self._resize()
 
@@ -1239,7 +1437,8 @@ class Popup:
         self._buttons(lf, [("Save ✓", self.do_save, BORDER), ("Cancel", self.show_files, BADGE_BG)])
         self._save_preview()
         empty = [e for e in entries if not e.get()]
-        (empty[0] if empty else box).focus_set()
+        self.initial_focus = empty[0] if empty else box
+        self.initial_focus.focus_set()
         if not empty:
             box.mark_set("insert", "end-1c")
         self._resize()
@@ -1358,7 +1557,10 @@ class Popup:
         info.pack(fill="x", padx=4, pady=(0, 4), before=self.list_frame)
         tk.Label(info, text=plan["desc"], bg=BADGE_BG, fg=BORDER, font=(FONT, 8, "bold"), anchor="w",
                  justify="left", wraplength=int((POPUP_WIDTH - 40) * self.scale)).pack(fill="x", padx=8, pady=(6, 2))
-        shown = plan["excerpt"][:8] + (["…"] if len(plan["excerpt"]) > 8 else [])
+        excerpt = plan["excerpt"]
+        if excerpt and header_hidden(excerpt[0]):     # saved into a hidden section: don't show it
+            excerpt = [excerpt[0]] + [MASK if l and not l.startswith("\u2026") else l for l in excerpt[1:]]
+        shown = excerpt[:8] + (["\u2026"] if len(excerpt) > 8 else [])
         tk.Label(info, text="\n".join(l if l else " " for l in shown), bg=BADGE_BG, fg=FG, font=("Consolas", 8),
                  anchor="w", justify="left").pack(fill="x", padx=8, pady=(0, 6))
         self.root.focus_set()
@@ -1379,6 +1581,274 @@ class Popup:
                                       {"key": "2", "label": "Back to the menu", "sub": "",
                                        "action": self.show_files}], hint="Esc close")
         self.root.focus_set()
+
+    # ---- view / edit a whole file
+    def show_view(self, path, back, editing=True, flash=""):
+        """Whole file. Read-only by default (select + Ctrl+C copies only the file text);
+        'Edit' makes it editable with Save (Ctrl+S). A backup is kept on every save."""
+        lines = file_lines(path)
+        original = "\n".join(lines)
+        colors = {"all": BORDER, "choices": "#7ee2a8", "blocks": "#ffcf6e"}
+        confirm = {"armed": False}
+
+        def dirty():
+            return editing and txt.winfo_exists() and txt.get("1.0", "end-1c").rstrip("\n") != original
+
+        def guarded(action):
+            """Run action, but warn once first if there are unsaved changes."""
+            def run(*_):
+                if dirty() and not confirm["armed"]:
+                    confirm["armed"] = True
+                    status.config(text="⚠ You have unsaved changes. Click Save, or do that again "
+                                       "to discard them.", fg=WARN)
+                    return
+                action()
+            return run
+
+        leave = guarded(back)
+        self.render(f"View • {path.name}", [], back=leave,
+                    hint=("Ctrl+S save • Ctrl+Z undo • Esc close" if editing
+                          else "scroll or ↑↓ • Backspace back • Esc close"))
+        self.width = VIEW_WIDTH
+        self.view_editing = editing
+        lf = self.list_frame
+        for c in lf.winfo_children():
+            c.destroy()
+
+        legend = tk.Frame(lf, bg=BG)
+        legend.pack(fill="x", padx=6, pady=(0, 4))
+        for kind, label in (("all", ":   send all lines"), ("choices", "::   menu, each line a choice"),
+                            ("blocks", ":::   menu, blank lines split snippets")):
+            tk.Label(legend, text=label, bg=BG, fg=colors[kind], font=("Consolas", 8, "bold")).pack(
+                side="left", padx=(0, 14))
+
+        # find bar: Ctrl+F, Enter = next, Shift+Enter = previous
+        findbar = tk.Frame(lf, bg=BADGE_BG)
+        findbar.pack(fill="x", padx=6, pady=(0, 4))
+        tk.Label(findbar, text="\U0001F50D", bg=BADGE_BG, fg=SUB, font=(FONT, 9)).pack(side="left", padx=(6, 2))
+        find_var = tk.StringVar()
+        find_entry = tk.Entry(findbar, textvariable=find_var, bg=BADGE_BG, fg=FG, insertbackground=FG,
+                              relief="flat", font=(FONT, 10))
+        find_entry.pack(side="left", fill="x", expand=True, ipady=3)
+        find_btns = {}
+        for name, symbol in (("next", "▼"), ("prev", "▲")):
+            b = tk.Label(findbar, text=symbol, bg=BADGE_BG, fg=FG, font=(FONT, 8), cursor="hand2", padx=6)
+            b.pack(side="right", padx=(0, 2))
+            find_btns[name] = b
+        find_count = tk.Label(findbar, text="find in file  (Ctrl+F)", bg=BADGE_BG, fg=DIM, font=(FONT, 8))
+        secret = {"show": False}
+        if any(header_hidden(l) for l in lines):
+            reveal = tk.Label(findbar, text="\U0001F512 show hidden", bg=BORDER, fg=FG, font=(FONT, 8, "bold"),
+                              cursor="hand2", padx=8)
+            reveal.pack(side="right", padx=(4, 2))
+
+            def flip(_e=None):
+                secret["show"] = not secret["show"]
+                reveal.config(text="\U0001F513 hide again" if secret["show"] else "\U0001F512 show hidden")
+                paint()
+            reveal.bind("<Button-1>", flip)
+        find_count.pack(side="right", padx=6)
+
+        # as many lines as fit on this screen
+        mono = ("Consolas", 10)
+        line_px = tkfont.Font(root=self.root, family=mono[0], size=mono[1]).metrics("linespace")
+        pt = wt.POINT()
+        user32.GetCursorPos(ctypes.byref(pt))
+        _, top, _, bottom = work_area_at(pt.x, pt.y)
+        fit = max(10, (bottom - top - int(270 * self.scale)) // max(line_px, 1))
+        height = max(12, min(len(lines) + (4 if editing else 1), fit))
+
+        # The text box holds ONLY the file's text, so copying gives exactly what's in the file.
+        # Line numbers live in a separate column next to it (not selectable, not copied).
+        frame = tk.Frame(lf, bg=BADGE_BG)
+        frame.pack(fill="both", expand=True, padx=6)
+        common = dict(bg=BADGE_BG, relief="flat", wrap="none", font=mono, height=height,
+                      pady=6, highlightthickness=0, bd=0)
+        gutter = tk.Text(frame, fg=DIM, width=4, padx=4, takefocus=0, cursor="arrow",
+                         exportselection=False, **common)
+        txt = tk.Text(frame, fg=FG, padx=8, selectbackground=HOVER, insertbackground=FG,
+                      undo=True, cursor="xterm", **common)
+        if editing:
+            txt.config(bg="#262c3f", highlightthickness=1, highlightbackground=BORDER, highlightcolor=BORDER)
+        ybar = tk.Scrollbar(frame, command=lambda *a: (txt.yview(*a), gutter.yview(*a)))
+        xbar = tk.Scrollbar(lf, orient="horizontal", command=txt.xview)
+
+        def on_scroll(first, last):
+            ybar.set(first, last)
+            gutter.yview_moveto(first)    # keep the numbers lined up with the text
+        txt.config(yscrollcommand=on_scroll, xscrollcommand=xbar.set)
+        ybar.pack(side="right", fill="y")
+        gutter.pack(side="left", fill="y")
+        txt.pack(side="left", fill="both", expand=True)
+        if editing or any(len(l) > 80 for l in lines):
+            xbar.pack(fill="x", padx=6)
+        for kind, color in colors.items():
+            txt.tag_config(kind, foreground=color, font=(mono[0], mono[1], "bold"))
+        txt.tag_config("secret", foreground="#3a4159", background="#3a4159")   # hidden lines = solid bars
+
+        finder = {"hits": [], "i": -1, "refresh": None}
+
+        def paint(*_):
+            """Colour the header lines and refresh the line numbers."""
+            for kind in list(colors) + ["secret"]:
+                txt.tag_remove(kind, "1.0", "end")
+            count = int(txt.index("end-1c").split(".")[0])
+            in_hidden = False
+            for i in range(1, count + 1):
+                text_line = txt.get(f"{i}.0", f"{i}.end")
+                info = header_info(text_line)
+                if info:
+                    txt.tag_add(info[1], f"{i}.0", f"{i}.end")
+                    in_hidden = header_hidden(text_line)
+                elif in_hidden and text_line.strip() and not secret["show"]:
+                    txt.tag_add("secret", f"{i}.0", f"{i}.end")
+            gutter.config(state="normal", width=len(str(count)) + 1)
+            gutter.delete("1.0", "end")
+            gutter.insert("1.0", "\n".join(str(i) for i in range(1, count + 1)))
+            gutter.config(state="disabled")
+            gutter.yview_moveto(txt.yview()[0])
+            if finder["refresh"]:
+                finder["refresh"]()           # keep find highlights right while you edit
+            if editing:
+                changed = dirty()
+                self.title_lbl.config(text=f"View • {path.name}" + ("  ● unsaved" if changed else ""))
+                if not changed:
+                    confirm["armed"] = False
+
+        txt.insert("1.0", original)
+        txt.edit_reset()
+        paint()
+        for ev in ("<Button-1>", "<B1-Motion>", "<Double-Button-1>"):
+            gutter.bind(ev, lambda e: "break")        # numbers can't be selected
+        select_all = lambda e: (txt.tag_add("sel", "1.0", "end-1c"), "break")[1]
+        txt.bind("<Control-a>", select_all)
+        txt.bind("<Control-A>", select_all)
+        self.viewer = txt
+
+        # ---- find in file
+        txt.tag_config("hit", background="#5a4a1f")
+        txt.tag_config("hit_now", background="#ffcf6e", foreground="#1e2230")
+        txt.tag_raise("hit")
+        txt.tag_raise("hit_now")
+        txt.tag_raise("sel")
+
+        def collect(jump):
+            txt.tag_remove("hit", "1.0", "end")
+            txt.tag_remove("hit_now", "1.0", "end")
+            query, hits, start = find_var.get(), [], "1.0"
+            while query:
+                pos = txt.search(query, start, stopindex="end", nocase=True)
+                if not pos:
+                    break
+                end = f"{pos}+{len(query)}c"
+                if "secret" in txt.tag_names(pos):    # don't reveal hidden text through find
+                    start = end
+                    continue
+                txt.tag_add("hit", pos, end)
+                hits.append((pos, end))
+                start = end
+            finder["hits"] = hits
+            if not query:
+                finder["i"] = -1
+                find_count.config(text="find in file  (Ctrl+F)", fg=DIM)
+            elif not hits:
+                finder["i"] = -1
+                find_count.config(text="no matches", fg=WARN)
+            elif jump:
+                # first match at or after the cursor
+                cursor = txt.index("insert")
+                finder["i"] = next((n for n, (p, _) in enumerate(hits)
+                                    if txt.compare(p, ">=", cursor)), 0)
+                show_hit()
+            else:
+                finder["i"] = min(max(finder["i"], 0), len(hits) - 1)
+                show_hit(scroll=False)
+
+        def show_hit(scroll=True):
+            pos, end = finder["hits"][finder["i"]]
+            txt.tag_remove("hit_now", "1.0", "end")
+            txt.tag_add("hit_now", pos, end)
+            if scroll:
+                txt.see(pos)
+                txt.mark_set("insert", end)
+            find_count.config(text=f"{finder['i'] + 1} of {len(finder['hits'])}", fg=SUB)
+
+        def step(d):
+            if finder["hits"]:
+                finder["i"] = (finder["i"] + d) % len(finder["hits"])
+                show_hit()
+            return "break"
+
+        def focus_find(_e=None):
+            find_entry.focus_set()
+            find_entry.select_range(0, "end")
+            return "break"
+
+        finder["refresh"] = lambda: collect(jump=False)
+        find_var.trace_add("write", lambda *a: collect(jump=True))
+        find_entry.bind("<Return>", lambda e: step(1))
+        find_entry.bind("<Shift-Return>", lambda e: step(-1))
+        find_entry.bind("<Down>", lambda e: step(1))
+        find_entry.bind("<Up>", lambda e: step(-1))
+        for w in (txt, find_entry):
+            w.bind("<Control-f>", focus_find)
+            w.bind("<Control-F>", focus_find)
+            w.bind("<F3>", lambda e: step(1))
+            w.bind("<Shift-F3>", lambda e: step(-1))
+        find_btns["next"].bind("<Button-1>", lambda e: step(1))
+        find_btns["prev"].bind("<Button-1>", lambda e: step(-1))
+
+        def copy_all():
+            ok = clip_set(txt.get("1.0", "end-1c").replace("\n", "\r\n"))
+            status.config(text="✓ Copied the whole file" if ok else "Could not copy, try again", fg=BORDER)
+
+        def save(*_):
+            new = txt.get("1.0", "end-1c").replace("\r\n", "\n").split("\n")
+            while new and not new[-1].strip():
+                new.pop()
+            try:
+                write_snippet_file(path, new)
+            except OSError as exc:
+                status.config(text=f"Could not save: {exc}", fg=WARN)
+                return "break"
+            self.show_view(path, back, flash="✓ Saved. The old version is in clipboard\\.backup\\")
+            return "break"
+
+        if editing:
+            txt.config(state="normal")
+            txt.bind("<KeyRelease>", paint)
+            txt.bind("<<Paste>>", lambda e: self.root.after(10, paint))
+            txt.bind("<Control-s>", save)
+            txt.bind("<Control-S>", save)
+            self.leave_guard = lambda: not dirty()
+        else:
+            txt.config(state="disabled")      # read-only, but you can still select and copy
+
+        sections = section_ranges(lines)
+        if is_freestyle_file(path):
+            summary = (f"{len(lines)} lines • freestyle file: blank lines separate "
+                       f"{len(split_blocks(lines))} snippet(s)")
+        else:
+            summary = f"{len(lines)} lines • {len(sections)} section(s)"
+        tip = ("type to edit • Ctrl+S save • Ctrl+F find • Ctrl+A select all" if editing
+               else "select text + Ctrl+C to copy • Ctrl+A selects all • Edit to change it")
+        self._note(lf, f"{summary}   •   {tip}")
+        status = self._note(lf, flash, color=BORDER)
+        if editing:
+            self._buttons(lf, [("Save ✓", save, BORDER),
+                               ("Copy all", copy_all, BADGE_BG),
+                               ("Open in Notepad", guarded(lambda: (os.startfile(path), self.hide())), BADGE_BG),
+                               ("Back", leave, BADGE_BG)])
+        else:
+            self._buttons(lf, [("Edit ✎", lambda: self.show_view(path, back, editing=True), BORDER),
+                               ("Copy all", copy_all, BADGE_BG),
+                               ("Open in Notepad", lambda: (os.startfile(path), self.hide()), BADGE_BG),
+                               ("Back", back, BADGE_BG)])
+        txt.focus_set()
+        self.initial_focus = txt
+        if editing:
+            txt.mark_set("insert", "1.0")
+        self._resize()
 
     # ---- help
     def show_help(self):
@@ -1412,8 +1882,13 @@ class Popup:
         self._note(lf, "Ctrl+V          open this menu        (0 = normal paste)\n"
                        "Ctrl+C twice    save what you copied  (new file, section, freestyle...)\n"
                        "Tab             Auto send / Confirm / Edit first\n"
-                       "Right-click     edit a snippet before sending\n"
+                       "Right-click     edit a snippet / view a file\n"
+                       "Type            search the list you are in\n"
+                       "\U0001F441 View         see the whole file; Edit \u270e to change + save\n"
                        "Esc / Ctrl+Z    close, or STOP while it is sending\n"
+                       "Send / Paste    Send presses Enter; Paste only puts it in the box\n"
+                       "name*:          * before the colons HIDES the text (shows **********)\n"
+                       "Type each key   for boxes that block paste (choose in Confirm/Edit)\n"
                        "{name} {greeting} {day} {date} {time} {clipboard}   filled in when sent", mono=True)
         self._buttons(lf, [("Back", self.show_files, BADGE_BG),
                            ("Open clipboard folder", lambda: (os.startfile(SNIPPET_DIR), self.hide()), BORDER)])
@@ -1442,20 +1917,36 @@ class Popup:
             press_ctrl_v()
         threading.Thread(target=job, daemon=True).start()
 
-    def send_lines(self, lines):
-        lines = fill_placeholders([l for l in lines if l.strip()], self.current_stem)
-        if not lines:
+    def send_lines(self, lines, enter=True, fill=True, keep_blank=False, method=None):
+        """enter=True: Send (Enter after each message). enter=False: Paste - put it in the box only."""
+        src = list(lines) if keep_blank else [l for l in lines if l.strip()]
+        while src and not src[-1].strip():
+            src.pop()
+        lines = fill_placeholders(src, self.current_stem) if fill else src
+        if not any(l.strip() for l in lines):
             return
-        # one message = all lines in one chat message (Shift+Enter between), else one message per line
-        messages = [lines] if self.settings["one_message"] else [[l] for l in lines]
+        if enter:
+            # one message = all lines in one chat message (Shift+Enter between), else one per line
+            messages = [lines] if self.settings["one_message"] else [[l] for l in lines]
+        else:
+            messages = [lines]       # Paste: everything into the box, Shift+Enter between lines
         self._return_to_target()
         self.busy = True
         self.hook.sending = True
         self.abort.clear()
-        threading.Thread(target=self._send_job, args=(messages,), daemon=True).start()
+        threading.Thread(target=self._send_job, args=(messages, enter, method or self.settings["input"]),
+                         daemon=True).start()
 
-    def _send_job(self, messages):
-        original = clip_get() if (MODE == "paste" and RESTORE_CLIPBOARD) else None
+    def type_clipboard(self):
+        """For boxes that block paste: type what you copied, key by key, without Enter."""
+        text = clip_get()
+        if not text:
+            return
+        self.send_lines(text.replace("\r\n", "\n").replace("\r", "\n").split("\n"),
+                        enter=False, fill=False, keep_blank=True, method="keys")
+
+    def _send_job(self, messages, enter=True, method="fast"):
+        original = clip_get() if (method == "clipboard" and RESTORE_CLIPBOARD) else None
         try:
             time.sleep(0.15)
             wait_modifiers_released()
@@ -1464,7 +1955,7 @@ class Popup:
                 # stop if Esc was pressed or you clicked into another window
                 if self.abort.is_set() or user32.GetForegroundWindow() != self.target:
                     break
-                if MODE == "paste":
+                if method == "clipboard":
                     clip_set("\r\n".join(msg))
                     time.sleep(0.05)
                     press_ctrl_v()
@@ -1474,8 +1965,13 @@ class Popup:
                         if i:
                             press_shift_enter()   # new line inside the same message
                             time.sleep(0.05)
-                        type_text(line)
+                        if method == "keys":
+                            type_keys(line, self.abort)
+                        else:
+                            type_text(line)
                         time.sleep(STEP_DELAY + len(line) * 0.002)   # long lines get a bit more time
+                if not enter:
+                    continue                      # Paste: leave it in the box, no Enter
                 time.sleep(BEFORE_ENTER)
                 if self.abort.is_set():
                     break
