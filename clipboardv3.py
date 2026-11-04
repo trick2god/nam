@@ -687,6 +687,14 @@ def remove_span(path, start, end, expect):
     write_snippet_file(path, new)
 
 
+def replace_span(path, start, end, expect, new_lines):
+    """Replaces lines [start, end) with new_lines, after checking they are still what we showed."""
+    lines = file_lines(path)
+    if [l.strip() for l in lines[start:end] if l.strip()] != expect:
+        raise ValueError("the file changed since the menu was opened - go back and try again")
+    write_snippet_file(path, lines[:start] + list(new_lines) + lines[end:])
+
+
 def set_header_hidden(path, line_no, header, hide):
     """Adds or removes the '*' before the colons of one header line ('name:' <-> 'name*:')."""
     lines = file_lines(path)
@@ -1065,6 +1073,13 @@ class Popup:
                 bin_.bind("<Button-1>", lambda e, f=item["remove"]: (f(), "break")[1])
                 bin_.bind("<Enter>", lambda e, w=bin_: w.config(bg=WARN, fg=BG))
                 bin_.bind("<Leave>", lambda e, w=bin_: w.config(bg=BADGE_BG, fg=WARN))
+            if item.get("change"):   # pen: edit the saved entry / rename the file
+                pen = tk.Label(row, text="\u270e", bg=BADGE_BG, fg=FG, font=(FONT, 10),
+                               cursor="hand2", padx=5, pady=1)
+                pen.pack(side="right", padx=(2, 2), pady=6, anchor="n")
+                pen.bind("<Button-1>", lambda e, f=item["change"]: (f(), "break")[1])
+                pen.bind("<Enter>", lambda e, w=pen: w.config(bg=BORDER))
+                pen.bind("<Leave>", lambda e, w=pen: w.config(bg=BADGE_BG))
             if item.get("toggle"):   # Hide / Show: adds or removes the * in the header
                 t_text, t_action = item["toggle"]
                 tog = tk.Label(row, text=t_text, bg=BADGE_BG, fg=SUB, font=(FONT, 8, "bold"),
@@ -1183,6 +1198,7 @@ class Popup:
                           "action": lambda p=path: self.show_sections(p),
                           "view": lambda p=path: self.show_view(p, back=self.show_files),
                           "remove": None if color is None else (lambda p=path: self._remove_file(p)),
+                          "change": None if color is None else (lambda p=path: self.show_rename(p)),
                           "context": lambda p=path: self.show_view(p, back=self.show_files)})
         items.append({"key": "", "label": "\uff0b  New text file", "always": True,
                       "sub": "create an empty file (a new person / topic) and start typing",
@@ -1318,6 +1334,9 @@ class Popup:
             else:
                 items.append(self._snippet_item(sec, key, freestyle, back))
             items[-1]["remove"] = self._remover_for(path, sec, back, section=not freestyle)
+            if sec.get("span"):
+                items[-1]["change"] = (lambda s_=sec: self.show_edit_entry(
+                    path, s_, "block" if freestyle else "section", back))
             if not freestyle and sec.get("header"):
                 hide = not sec.get("hidden")
                 items[-1]["toggle"] = ("\U0001F512 Hide" if hide else "\U0001F513 Show",
@@ -1344,6 +1363,7 @@ class Popup:
                  for n, o in enumerate(opts, start=1)]
         for item, o in zip(items, opts):
             item["remove"] = self._remover_for(path, o, back)
+            item["change"] = (lambda o_=o: self.show_edit_entry(path, o_, "block" if blocks else "choice", back))
         ranges = section_ranges(file_lines(path))
         sec_index = next((i for i, r in enumerate(ranges) if r[2] == sec.get("line_no")), 0)
         add_title = "Add snippet" if blocks else "Add choice"
@@ -1452,6 +1472,201 @@ class Popup:
         before = read_text(path)
         remove_span(path, span[0], span[1], expect)
         return lambda: path.write_text(before, encoding="utf-8", newline="\r\n")
+
+    def _after_change(self, path, before, back, message):
+        back()
+        self.undo_action = lambda: (path.write_text(before, encoding="utf-8", newline="\r\n"), back())
+        self.hint.config(text=f"{message} \u2022 Ctrl+Z to undo")
+
+    def show_rename(self, path):
+        """Pen on a file: rename it (the name shown in the menu)."""
+        self.render(f"Rename \u2022 {path.name}", [], back=self.show_files, hint="Enter rename \u2022 Esc close")
+        lf = self.list_frame
+        for c in lf.winfo_children():
+            c.destroy()
+        self._section(lf, "NEW NAME")
+        var = tk.StringVar(value=path.stem)
+        entry = self._entry(lf, var, "this is the name in the menu; the file becomes <name>.txt")
+        msg = self._note(lf, "")
+
+        def rename(_e=None):
+            name = safe_filename(var.get())
+            if not name:
+                msg.config(text="Type a name.", fg=WARN)
+                return "break"
+            if name == path.stem:
+                self.show_files()
+                return "break"
+            new = path.with_name(f"{name}.txt")
+            if new.exists() and new.resolve() != path.resolve():
+                msg.config(text=f"{new.name} already exists.", fg=WARN)
+                return "break"
+            if name.lower() == "freestyle":
+                msg.config(text="'freestyle' is the special quick-save file - pick another name.", fg=WARN)
+                return "break"
+            try:
+                path.rename(new)
+            except OSError as exc:
+                msg.config(text=f"Could not rename: {exc}", fg=WARN)
+                return "break"
+            if self.settings.get("last_save") == path.name:
+                self.settings["last_save"] = new.name
+                save_settings(self.settings)
+            if path in self.drafts:
+                self.drafts[new] = self.drafts.pop(path)
+            self.show_files()
+            self.undo_action = lambda: (new.rename(path) if not path.exists() else None, self.show_files())
+            self.hint.config(text=f"Renamed to '{name}' \u2022 Ctrl+Z to undo")
+            return "break"
+        entry.bind("<Return>", rename)
+        self._buttons(lf, [("Rename \u2713", rename, BORDER), ("Cancel", self.show_files, BADGE_BG)])
+        entry.focus_set()
+        entry.select_range(0, "end")
+        self.initial_focus = entry
+        self._resize()
+
+    def show_edit_entry(self, path, opt, what, back):
+        """Pen on an entry: change what is saved in the file.
+        what = 'section' (name / type / hidden / text), 'choice' (one line), 'block' (a few lines)."""
+        hidden = bool(opt.get("hidden"))
+        name_for_title = "hidden entry" if opt.get("secret_title") else opt["title"]
+        self.render(f"Edit saved {what} \u2022 {name_for_title}", [], back=back,
+                    hint="Ctrl+S / Enter save \u2022 Esc close")
+        self.width = SAVE_WIDTH
+        lf = self.list_frame
+        for c in lf.winfo_children():
+            c.destroy()
+        state = {"kind": opt.get("kind", "all"), "revealed": not hidden}
+        if what == "section" and state["kind"] == "blocks":
+            original_text = "\n\n".join("\n".join(o["lines"]) for o in opt.get("options", []))
+        else:
+            original_text = "\n".join(opt["lines"])
+        name_var = tk.StringVar(value=opt["title"])
+        hidden_var = tk.BooleanVar(value=hidden)
+        widgets = {}
+
+        if what == "section":
+            self._section(lf, "NAME   (what you click in the menu)")
+            name_entry = self._entry(lf, name_var, "")
+            widgets["name"] = name_entry
+            self._section(lf, "TYPE")
+            holder = tk.Frame(lf, bg=BG)
+            holder.pack(fill="x")
+
+            def draw_kind():
+                for c in holder.winfo_children():
+                    c.destroy()
+                self._chips(holder, [("all", ":   send all"), ("choices", "::   choices"), ("blocks", ":::   blocks")],
+                            state["kind"], pick_kind)
+                self._note(holder, KIND_HELP[state["kind"]], mono=True)
+
+            def pick_kind(value):
+                state["kind"] = value
+                draw_kind()
+                self._resize()
+            draw_kind()
+            tk.Checkbutton(lf, text="Hidden  (shows ********** in the menu; the real text is still sent)",
+                           variable=hidden_var, bg=BG, fg=SUB, activebackground=BG, activeforeground=FG,
+                           selectcolor=BADGE_BG, font=(FONT, 8), anchor="w", bd=0,
+                           highlightthickness=0).pack(fill="x", padx=6, pady=(6, 0))
+
+        self._section(lf, "TEXT" if what != "choice" else "THE LINE")
+        area = tk.Frame(lf, bg=BG)
+        area.pack(fill="x")
+
+        def build_text():
+            for c in area.winfo_children():
+                c.destroy()
+            if what == "choice":
+                e = tk.Entry(area, bg=BADGE_BG, fg=FG, insertbackground=FG, relief="flat", font=(FONT, 10))
+                e.pack(fill="x", padx=6, ipady=4)
+                e.insert(0, original_text)
+                e.bind("<Return>", save)
+                widgets["text"] = e
+            else:
+                boxf = tk.Frame(area, bg=BADGE_BG)
+                boxf.pack(fill="x", padx=6)
+                t = tk.Text(boxf, bg=BADGE_BG, fg=FG, insertbackground=FG, relief="flat", wrap="word",
+                            font=(FONT, 9), height=min(max(original_text.count("\n") + 2, 4), 12), undo=True,
+                            padx=6, pady=4, selectbackground=HOVER)
+                t.pack(fill="x")
+                t.insert("1.0", original_text)
+                t.edit_reset()
+                widgets["text"] = t
+            widgets["text"].bind("<Control-s>", save)
+            widgets["text"].bind("<Control-S>", save)
+            self._resize()
+
+        def reveal(_e=None):
+            state["revealed"] = True
+            build_text()
+            widgets["text"].focus_set()
+
+        msg = self._note(lf, "")
+
+        def current_text():
+            if not state["revealed"]:
+                return original_text
+            w = widgets["text"]
+            return w.get() if isinstance(w, tk.Entry) else w.get("1.0", "end-1c")
+
+        def save(_e=None):
+            span = opt["span"]
+            try:
+                before = read_text(path)
+                if what == "section":
+                    title = name_var.get().strip().rstrip(":").strip().rstrip("*").strip()
+                    if not title:
+                        msg.config(text="Type a name.", fg=WARN)
+                        return "break"
+                    for t_, k_, i_, j_ in section_ranges(file_lines(path)):
+                        if i_ != opt.get("line_no") and t_.lower() == title.lower():
+                            msg.config(text=f"'{t_}' already exists in this file - pick another name.", fg=WARN)
+                            return "break"
+                    kind = state["kind"]
+                    header = title + ("*" if hidden_var.get() else "") + HEADER_COLONS[kind]
+                    expect = ([opt["header"]] if opt.get("header") else []) + opt["lines"]
+                    new = ([header] if opt.get("header") else []) + clean_lines(current_text(), kind)
+                    label = title
+                elif what == "choice":
+                    line = current_text().strip()
+                    if not line:
+                        msg.config(text="The line is empty - use the bin to remove it instead.", fg=WARN)
+                        return "break"
+                    expect, new, label = opt["lines"], [line], "the choice"
+                else:
+                    new = clean_lines(current_text(), "blocks")
+                    if not new:
+                        msg.config(text="The text is empty - use the bin to remove it instead.", fg=WARN)
+                        return "break"
+                    expect, label = opt["lines"], "the snippet"
+                lookalike = [l for l in new[1 if what == "section" and opt.get("header") else 0:] if header_info(l)]
+                if lookalike and not msg.cget("text").startswith("\u26a0"):
+                    msg.config(text=f"\u26a0 '{lookalike[0]}' ends with ':' so it will become a new header. "
+                                    "Save again to keep it anyway.", fg=WARN)
+                    return "break"
+                replace_span(path, span[0], span[1], expect, new)
+            except (OSError, ValueError) as exc:
+                msg.config(text=f"Could not save: {exc}", fg=WARN)
+                return "break"
+            self._after_change(path, before, back, f"Saved {label}")
+            return "break"
+
+        if state["revealed"]:
+            build_text()
+        else:   # hidden: don't show the text until you ask for it
+            cover = tk.Label(area, text="\U0001F512  " + MASK + "      click to show the text and edit it",
+                             bg=BADGE_BG, fg=SUB, font=(FONT, 9), cursor="hand2", anchor="w", padx=8, pady=8)
+            cover.pack(fill="x", padx=6)
+            cover.bind("<Button-1>", reveal)
+        if what == "section":
+            widgets["name"].bind("<Return>", save)
+        self._buttons(lf, [("Save \u2713", save, BORDER), ("Cancel", back, BADGE_BG)])
+        first = widgets.get("name") or widgets.get("text")
+        if first is not None:
+            first.focus_set()
+            self.initial_focus = first
+        self._resize()
 
     def _toggle_hidden(self, path, sec, hide, back):
         try:
@@ -2169,6 +2384,7 @@ class Popup:
                        "\uff0b / \U0001F5D1          add or remove files and entries (Ctrl+Z undoes a remove)\n"
                        "name*:          * before the colons HIDES the text (shows **********)\n"
                        "Hide / Show     buttons on each section add / remove that * for you\n"
+                       "\u270e (pen)         rename a file / change a saved entry (left Edit = this send only)\n"
                        "Type each key   for boxes that block paste (choose in Confirm/Edit)\n"
                        "{name} {greeting} {day} {date} {time} {clipboard}   filled in when sent", mono=True)
         self._copy_twice_switch(lf)
