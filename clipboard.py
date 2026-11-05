@@ -10,11 +10,7 @@ Press Ctrl+V anywhere and a popup opens beside the mouse:
         follow up 1:            <- section header (shown in the popup)
         line one                <- pasted, then Enter
         line two                <- pasted, then Enter
-conf t
-default int fa0/24
-interface FastEthernet0/24
 
-description TRUNK-TO-FRONT-SW#2
 Header types (colons at the end of the line):
   name:      sends every line below it, one message per line
   name::     opens a menu; every line below it is its own choice
