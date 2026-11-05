@@ -10,11 +10,7 @@ Press Ctrl+V anywhere and a popup opens beside the mouse:
         follow up 1:            <- section header (shown in the popup)
         line one                <- pasted, then Enter
         line two                <- pasted, then Enter
-conf t
-default int fa0/24
-interface FastEthernet0/24
 
-description TRUNK-TO-FRONT-SW#2
 Header types (colons at the end of the line):
   name:      sends every line below it, one message per line
   name::     opens a menu; every line below it is its own choice
@@ -365,6 +361,44 @@ def wait_modifiers_released(timeout=3.0):
     end = time.time() + timeout
     while time.time() < end and any(is_down(k) for k in (VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN)):
         time.sleep(0.02)
+
+
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD), ("hwndActive", wt.HWND), ("hwndFocus", wt.HWND),
+                ("hwndCapture", wt.HWND), ("hwndMenuOwner", wt.HWND), ("hwndMoveSize", wt.HWND),
+                ("hwndCaret", wt.HWND), ("rcCaret", wt.RECT)]
+
+
+user32.GetGUIThreadInfo.argtypes = [wt.DWORD, ctypes.POINTER(GUITHREADINFO)]
+user32.SetFocus.argtypes = [wt.HWND]
+user32.SetFocus.restype = wt.HWND
+
+
+def focused_control(top_hwnd):
+    """The exact box that has the cursor inside a window (e.g. Outlook's search box), or None."""
+    if not top_hwnd:
+        return None
+    tid = user32.GetWindowThreadProcessId(top_hwnd, None)
+    info = GUITHREADINFO(cbSize=ctypes.sizeof(GUITHREADINFO))
+    if tid and user32.GetGUIThreadInfo(tid, ctypes.byref(info)) and info.hwndFocus:
+        return info.hwndFocus
+    return None
+
+
+def restore_focus(top_hwnd, control):
+    """Bring the window back AND put the cursor back in the box you were in. Without this some
+    apps (Outlook search, browser address bars...) lose the box and the paste goes nowhere."""
+    force_foreground(top_hwnd)
+    if not control or not user32.IsWindow(control):
+        return
+    cur = kernel32.GetCurrentThreadId()
+    tid = user32.GetWindowThreadProcessId(control, None)
+    attached = bool(tid and tid != cur and user32.AttachThreadInput(cur, tid, True))
+    try:
+        user32.SetFocus(control)
+    finally:
+        if attached:
+            user32.AttachThreadInput(cur, tid, False)
 
 
 def force_foreground(hwnd):
@@ -795,6 +829,7 @@ class Popup:
         self.busy = False
         self.abort = threading.Event()
         self.target = None
+        self.target_focus = None     # the exact box (control) inside the target window
         self.items, self.rows, self.sel = [], [], 0
         self.back_action = None
         self.hwnd = None
@@ -987,6 +1022,7 @@ class Popup:
 
     def _open(self, target_hwnd, screen):
         self.target = target_hwnd
+        self.target_focus = focused_control(target_hwnd)   # the box you were typing in (before we take focus)
         self._active_seen = False
         self._away_since = None
         screen()
@@ -2605,7 +2641,7 @@ class Popup:
     # ---- actions
     def _return_to_target(self):
         self.hide()
-        force_foreground(self.target)
+        restore_focus(self.target, self.target_focus)
 
     def normal_paste(self):
         self._return_to_target()
