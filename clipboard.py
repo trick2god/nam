@@ -36,6 +36,10 @@ Saving new snippets: copy text, then press Ctrl+C again quickly (Ctrl+C twice), 
 replace a section) or a new file, and the type (:  ::  :::). A preview shows exactly what
 will be written; a backup of the old file goes to clipboard/.backup/. The "?" chip explains it all.
 
+Text from a picture: copy a screenshot (Win+Shift+S) or an image, press Ctrl+V and pick
+"Text from copied picture". The OCR built into Windows reads it (nothing installed, nothing
+leaves the PC) and the text opens in the editor: Send / Type / Paste it, Copy it, or save it.
+
 Running it again closes the copy that is already running and takes over.
 
 Keys in the popup:
@@ -48,13 +52,16 @@ Keys in the popup:
 Run with:  pythonw clipboard.py   (no console)  or  python clipboard.py
 """
 
+import base64
 import ctypes
 import ctypes.wintypes as wt
 import json
 import os
 import queue
 import re
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -87,6 +94,10 @@ CHAT_APPS = {"ms-teams.exe", "teams.exe", "slack.exe", "whatsapp.exe", "telegram
 CONFIRM_DELAY = 0.1      # wait before the confirm Enter
 PASTE_DELAY = 0.1         # seconds to wait after each Ctrl+V in "paste" mode before touching the clipboard again
 RESTORE_CLIPBOARD = True  # put your original clipboard text back afterwards
+# Apps where Ctrl+V / Ctrl+C twice are left completely alone (no popup). File Explorer: its rename
+# box (F2) and address bar close the moment they lose focus, so a popup would make the paste
+# land nowhere. Add more in clipboard_settings.json -> "skip_apps": ["explorer.exe", ...]
+SKIP_APPS = ["explorer.exe"]
 POPUP_WIDTH = 360         # px at 100% scaling
 SAVE_WIDTH = 440          # the "Save copied text" form is a bit wider
 VIEW_WIDTH = 700          # the View / Edit file screen
@@ -103,7 +114,7 @@ SEND_MODES = {
     "edit":    ("Edit first", "Click opens the editor"),
 }
 DEFAULT_SETTINGS = {"mode": "confirm", "one_message": False, "last_save": "freestyle.txt",
-                    "input": "fast", "copy_twice": True}
+                    "input": "fast", "copy_twice": True, "skip_apps": SKIP_APPS}
 
 
 def load_settings():
@@ -116,6 +127,8 @@ def load_settings():
         s["mode"] = "confirm"
     if s.get("input") not in INPUT_METHODS:
         s["input"] = "fast"
+    if not isinstance(s.get("skip_apps"), list):
+        s["skip_apps"] = list(SKIP_APPS)
     return s
 
 
@@ -257,6 +270,23 @@ def window_exe(hwnd):
         return ""
     finally:
         kernel32.CloseHandle(h)
+
+
+_EXE_BY_PID = {}
+
+
+def foreground_exe():
+    """Exe name of the active window, cached per process (the keyboard hook asks on every Ctrl+V)."""
+    hwnd = user32.GetForegroundWindow()
+    pid = wt.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    exe = _EXE_BY_PID.get(pid.value)
+    if exe is None:
+        exe = window_exe(hwnd)
+        if len(_EXE_BY_PID) > 200:
+            _EXE_BY_PID.clear()
+        _EXE_BY_PID[pid.value] = exe
+    return exe
 
 
 kernel32.CreateEventW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.BOOL, wt.LPCWSTR]
@@ -478,6 +508,121 @@ def clip_set(text, private=False):
         user32.CloseClipboard()
 
 
+# ----------------------------------------------------------------- picture -> text (Windows OCR)
+CF_BITMAP, CF_DIB, CF_DIBV5 = 2, 8, 17
+
+
+def clip_has_image():
+    """True when the clipboard holds a picture (screenshot, Win+Shift+S, 'Copy image')."""
+    if any(user32.IsClipboardFormatAvailable(f) for f in (CF_DIB, CF_BITMAP, CF_DIBV5)):
+        return True
+    fmt = user32.RegisterClipboardFormatW("PNG")
+    return bool(fmt and user32.IsClipboardFormatAvailable(fmt))
+
+
+# Runs in a hidden PowerShell: takes the clipboard picture, makes small screenshots 2x bigger
+# (OCR reads small UI text much better), then asks the OCR engine built into Windows to read it.
+# Nothing is installed and the picture never leaves this PC. A blank line is printed where the
+# picture has a bigger gap between lines (paragraphs), so blocks stay together.
+OCR_SCRIPT = r'''
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+try {
+  Add-Type -AssemblyName System.Windows.Forms, System.Drawing, System.Runtime.WindowsRuntime
+  $img = [System.Windows.Forms.Clipboard]::GetImage()
+  if (-not $img) {
+    $data = [System.Windows.Forms.Clipboard]::GetDataObject()
+    if ($data -and $data.GetDataPresent('PNG')) { $img = [System.Drawing.Image]::FromStream($data.GetData('PNG')) }
+  }
+  if (-not $img) { Write-Output '##NOIMAGE##'; exit 0 }
+  $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+  $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+  $null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]
+  $max = [Windows.Media.Ocr.OcrEngine]::MaxImageDimension
+  $s = 1.0
+  if ($img.Width -lt 1200 -and $img.Height -lt 1200) { $s = 2.0 }
+  $s = [Math]::Min($s, [Math]::Min($max / $img.Width, $max / $img.Height))
+  $w = [Math]::Max(1, [int]($img.Width * $s)); $h = [Math]::Max(1, [int]($img.Height * $s))
+  $bmp = New-Object System.Drawing.Bitmap $w, $h
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.Clear([System.Drawing.Color]::White)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.DrawImage($img, 0, 0, $w, $h)
+  $g.Dispose(); $img.Dispose()
+  $bmp.Save('__PNG__', [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Dispose()
+
+  $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+      $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
+      $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+  function Await($op, [Type]$type) {
+    $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op))
+    $null = $t.Wait(-1)
+    $t.Result
+  }
+  $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
+  if (-not $engine) { Write-Output '##NOLANG##'; exit 0 }
+  $file = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync('__PNG__')) ([Windows.Storage.StorageFile])
+  $stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+  $decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
+  $soft = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
+  $result = Await ($engine.RecognizeAsync($soft)) ([Windows.Media.Ocr.OcrResult])
+  $stream.Dispose()
+  $prevTop = $null; $prevBot = $null
+  foreach ($line in $result.Lines) {
+    $top = ($line.Words | ForEach-Object { $_.BoundingRect.Y } | Measure-Object -Minimum).Minimum
+    $bot = ($line.Words | ForEach-Object { $_.BoundingRect.Y + $_.BoundingRect.Height } | Measure-Object -Maximum).Maximum
+    if ($prevBot -ne $null -and ($top - $prevBot) -gt 0.9 * ($prevBot - $prevTop)) { Write-Output '' }
+    Write-Output $line.Text
+    $prevTop = $top; $prevBot = $bot
+  }
+} catch {
+  Write-Output ('##ERROR## ' + $_.Exception.Message)
+}
+'''
+
+
+def ocr_clipboard_image(timeout=40):
+    """Reads the words in the copied picture. Returns (lines, error_message)."""
+    fd, png = tempfile.mkstemp(prefix="clip_ocr_", suffix=".png")
+    os.close(fd)
+    script = OCR_SCRIPT.replace("__PNG__", png.replace("'", "''"))
+    try:
+        out = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-STA",
+             "-EncodedCommand", base64.b64encode(script.encode("utf-16-le")).decode("ascii")],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout,
+            creationflags=0x08000000)          # CREATE_NO_WINDOW: no console flashes up
+    except FileNotFoundError:
+        return None, "PowerShell was not found on this PC, so Windows OCR can't be used."
+    except subprocess.TimeoutExpired:
+        return None, "Reading the picture took too long. Try a smaller picture."
+    finally:
+        try:
+            os.remove(png)
+        except OSError:
+            pass
+    text = out.stdout.decode("utf-8", errors="replace").lstrip("﻿")
+    lines = [l.rstrip() for l in text.replace("\r\n", "\n").split("\n")]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    first = lines[0] if lines else ""
+    if first == "##NOIMAGE##":
+        return None, "There is no picture on the clipboard any more. Copy it again."
+    if first == "##NOLANG##":
+        return None, ("Windows has no OCR language installed. Settings > Time & language > "
+                      "Language: add English (with 'Optical character recognition').")
+    if first.startswith("##ERROR##"):
+        return None, "Windows OCR failed: " + first[9:].strip()
+    if not lines:
+        err = out.stderr.decode("utf-8", errors="replace").strip()
+        return None, ("No text was found in the picture." if not err or out.returncode == 0
+                      else "Windows OCR failed: " + err[:200])
+    return lines, ""
+
+
 def work_area_at(x, y):
     mon = user32.MonitorFromPoint(wt.POINT(x, y), 2)  # MONITOR_DEFAULTTONEAREST
     mi = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
@@ -491,8 +636,9 @@ class KeyHook(threading.Thread):
     """Global low-level hook: swallows Ctrl+V and reports it; watches Esc while sending;
     reports Ctrl+C pressed twice quickly (the copy itself still happens normally)."""
 
-    def __init__(self, on_ctrl_v, on_escape, on_copy_twice=None):
+    def __init__(self, on_ctrl_v, on_escape, on_copy_twice=None, skip_apps=()):
         super().__init__(daemon=True)
+        self.skip_apps = {a.lower() for a in skip_apps}   # apps where Ctrl+V is left alone
         self.on_ctrl_v, self.on_escape, self.on_copy_twice = on_ctrl_v, on_escape, on_copy_twice
         self.tid = None
         self._last_c = 0.0
@@ -536,6 +682,9 @@ class KeyHook(threading.Thread):
                     elif kb.vkCode == VK_Z and plain_ctrl and self.sending:
                         self.on_escape()     # Ctrl+Z = stop sending
                         return 1             # swallowed, so the app doesn't undo what was typed
+                    elif kb.vkCode in (VK_V, VK_C) and plain_ctrl and self.skip_apps \
+                            and foreground_exe() in self.skip_apps:
+                        pass       # e.g. File Explorer: normal paste / copy, no popup
                     elif kb.vkCode == VK_V and plain_ctrl:
                         self.on_ctrl_v(user32.GetForegroundWindow())
                         return 1   # swallow the key, the popup takes over
@@ -853,6 +1002,9 @@ class Popup:
         self._active_seen = False    # watchdog: has the popup been the active window yet?
         self._away_since = None
         self.current_stem = ""
+        self._files_img = None       # was a picture on the clipboard when the main menu was built?
+        self._ocr_token = 0          # which "read the picture" request is the current one
+        self._ocr_waiting = False
         self.settings = load_settings()
         self.quit_event = kernel32.CreateEventW(None, True, False, QUIT_EVENT_NAME)
 
@@ -905,7 +1057,8 @@ class Popup:
         r.bind("<Control-Z>", lambda e: self.undo_action() if self.undo_action else None)
         r.bind("<FocusOut>", lambda e: r.after(250, self._check_focus))
 
-        self.hook = KeyHook(self._from_hook_ctrl_v, self._from_hook_escape, self._from_hook_copy_twice)
+        self.hook = KeyHook(self._from_hook_ctrl_v, self._from_hook_escape, self._from_hook_copy_twice,
+                            skip_apps=self.settings.get("skip_apps", SKIP_APPS))
         self.hook.start()
         r.after(30, self._poll)
         r.after(300, self._warm_up)
@@ -941,6 +1094,8 @@ class Popup:
                 kind, arg = self.events.get_nowait()
                 if kind == "show":
                     self.show(arg)
+                elif kind == "ocr":
+                    self._ocr_done(*arg)
                 elif kind == "save":   # give the app a moment to put the copied text on the clipboard
                     self.root.after(300, lambda h=arg: self.open_save(h))
         except queue.Empty:
@@ -977,7 +1132,8 @@ class Popup:
                 return
             self.normal_paste()               # Ctrl+V again while open = normal paste
             return
-        if self._screen == "files" and self._files_sig == self._files_signature():
+        if self._screen == "files" and self._files_sig == self._files_signature() \
+                and self._files_img == clip_has_image():   # picture row only shows when a picture is copied
             self._open(target_hwnd, self._refresh_files)   # nothing changed: reuse the menu (instant)
         else:
             self._open(target_hwnd, self.show_files)
@@ -1119,6 +1275,7 @@ class Popup:
         self.leave_guard = None
         self.on_leave = None
         self.initial_focus = None
+        self._ocr_waiting = False
         self.back_action = back
         if back:
             self.back_lbl.pack(side="left", before=self.title_lbl, padx=(0, 6))
@@ -1395,6 +1552,13 @@ class Popup:
         items = [{"key": "", "badge": "⏎", "paste_row": True,   # Enter = paste normally (it's highlighted)
                   "label": "Paste clipboard normally", "sub": self._clip_preview(),
                   "action": self.normal_paste}]
+        has_img = clip_has_image()
+        if has_img:                       # a picture is copied: offer to read the text in it
+            items.append({"key": "", "badge": "\U0001F524", "label": "Text from copied picture",
+                          "sub": "reads the words in the picture (Windows OCR, stays on this PC), "
+                                 "then Send / Type / Paste / Copy",
+                          "text": "text from copied picture image screenshot ocr read scan",
+                          "action": self.read_picture})
         colored = 0
         for n, path in enumerate(list_files(), start=1):
             try:
@@ -1435,6 +1599,53 @@ class Popup:
                              "action": self.show_new_file})
         self.render("Clipboard snippets", items, hint=hint, search=True)
         self._screen, self._files_sig, self._files_hint = "files", files_sig, hint   # Ctrl+V can reuse it
+        self._files_img = has_img
+
+    # ---- picture -> text
+    def read_picture(self):
+        """Reads the text in the copied picture (in the background), then opens it in the editor."""
+        self._ocr_token += 1
+        token = self._ocr_token
+        back = self.show_files
+        self.render("Reading the picture…", [{"key": "", "label": "Cancel", "sub": "", "action": back}],
+                    back=back, hint="usually 1-2 seconds (the first time can take longer) • Esc close")
+        self._note(self.body, "Windows is reading the text in the picture you copied. "
+                              "Nothing is sent anywhere: it all happens on this PC.")
+        self._ocr_waiting = True
+        self._resize()
+
+        def job():
+            try:
+                lines, err = ocr_clipboard_image()
+            except Exception as exc:          # never leave the screen waiting forever
+                lines, err = None, f"Could not read the picture: {exc}"
+            self.events.put(("ocr", (token, lines, err)))
+        threading.Thread(target=job, daemon=True).start()
+
+    def _ocr_done(self, token, lines, err):
+        if token != self._ocr_token or not (self.visible and self._ocr_waiting):
+            return                            # cancelled, closed, or an older request
+        self._ocr_waiting = False
+        if err:
+            self.render("Text from picture", [
+                {"key": "1", "label": "Try again", "sub": "copy the picture again first if it changed",
+                 "action": self.read_picture},
+                {"key": "2", "label": "Back", "sub": "", "action": self.show_files}],
+                back=self.show_files, hint="1 try again • 2 back • Esc close")
+            self._note(self.body, err, color=WARN)
+            self._resize()
+            return
+
+        def copy_text(text):
+            if clip_set(text.strip("\n").replace("\n", "\r\n")):
+                self.hide()                   # now a normal paste (Ctrl+V, Enter) gives the text
+            else:
+                self.hint.config(text="Could not copy, try again")
+
+        self.show_editor("Text from picture", lines, back=self.show_files, fill=False,
+                         note="Check the text first: OCR can mix up look-alike characters (0/O, 1/l/I, rn/m).",
+                         extra=[("Copy text \U0001F4C4", copy_text),
+                                ("Save as snippet ＋", lambda text: self.show_save(text))])
 
     # ---- send modes
     def _update_mode_chip(self):
@@ -1604,9 +1815,11 @@ class Popup:
                 "action": lambda: self.choose(title, lines, back=back),
                 "edit": lambda: self.show_editor(title, lines, back=back)}
 
-    def show_editor(self, title, lines, back):
-        """Edit the lines before sending. Each non-blank line is sent, then Enter."""
-        lines = fill_placeholders(lines, self.current_stem)
+    def show_editor(self, title, lines, back, fill=True, note="", extra=()):
+        """Edit the lines before sending. Each non-blank line is sent, then Enter.
+        extra = [(label, fn(text))] adds more buttons (e.g. Copy / Save for text read from a picture)."""
+        if fill:
+            lines = fill_placeholders(lines, self.current_stem)
         self.render(f"Edit \u2022 {title}", [], back=back,
                     hint="Ctrl+Enter send \u2022 Ctrl+Shift+Enter paste \u2022 Esc close")
         self.width = SAVE_WIDTH            # room for Send / Type / Paste / Cancel
@@ -1614,6 +1827,8 @@ class Popup:
             child.destroy()
         tk.Label(self.list_frame, text=self._target_label(), bg=BG, fg=BORDER, font=(FONT, 8, "bold"),
                  anchor="w").pack(fill="x", padx=6, pady=(0, 2))
+        if note:
+            self._note(self.list_frame, note, color=WARN).pack_configure(pady=(0, 4))
         box = tk.Frame(self.list_frame, bg=BADGE_BG)
         box.pack(fill="both", expand=True, padx=4, pady=(0, 6))
         editor = tk.Text(box, bg=BADGE_BG, fg=FG, insertbackground=FG, relief="flat", wrap="word",
@@ -1627,7 +1842,7 @@ class Popup:
         def send(_e=None, enter=True, method="fast"):
             out = [l.strip() for l in editor.get("1.0", "end").splitlines() if l.strip()]
             if out:
-                self.send_lines(out, enter=enter, method=method)
+                self.send_lines(out, enter=enter, method=method, fill=fill)
             return "break"
 
         self._one_message_toggle(self.list_frame)
@@ -1660,6 +1875,16 @@ class Popup:
                          cursor="hand2", padx=12, pady=4)
             b.pack(side="right", padx=(6, 0))
             b.bind("<Button-1>", lambda e, c=cmd: c())
+        if extra:                          # e.g. Copy text / Save as snippet (text read from a picture)
+            more = tk.Frame(self.list_frame, bg=BG)
+            more.pack(fill="x", padx=4, pady=(4, 2))
+            for label, fn in extra:
+                b = tk.Label(more, text=label, bg=BADGE_BG, fg=FG, font=(FONT, 9, "bold"),
+                             cursor="hand2", padx=10, pady=3)
+                b.pack(side="right", padx=(6, 0))
+                b.bind("<Button-1>", lambda e, f=fn: f(editor.get("1.0", "end-1c")))
+                b.bind("<Enter>", lambda e, w=b: w.config(bg=BORDER))
+                b.bind("<Leave>", lambda e, w=b: w.config(bg=BADGE_BG))
         editor.bind("<Control-Return>", lambda e: send(enter=enter_on["fast"], method="fast"))
         editor.bind("<Control-Shift-Return>", lambda e: send(enter=enter_on["clipboard"], method="clipboard"))
         editor.focus_set()
@@ -2619,6 +2844,7 @@ class Popup:
                        "Send            types it fast, then Enter after each line\n"
                        "Type            types every key, no Enter (boxes that block paste)\n"
                        "Paste           pastes with the clipboard, no Enter (kept out of Win+V history)\n"
+                       "\U0001F524 Picture      copied a screenshot? 'Text from copied picture' reads it (OCR)\n"
                        "\uff0b / \U0001F5D1          add or remove files and entries (Ctrl+Z undoes a remove)\n"
                        "name*:          * before the colons HIDES the text (shows **********)\n"
                        "Hide / Show     buttons on each section add / remove that * for you\n"
@@ -2634,7 +2860,7 @@ class Popup:
     def _clip_preview():
         text = clip_get()
         if text is None:
-            return "(clipboard is empty or not text)"
+            return "(a picture: Enter pastes it as usual)" if clip_has_image() else "(clipboard is empty or not text)"
         one = " ".join(text.split())
         return one[:60] + ("…" if len(one) > 60 else "")
 
