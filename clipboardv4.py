@@ -43,7 +43,7 @@ will be written; a backup of the old file goes to clipboard/.backup/. The "?" ch
 Running it again closes the copy that is already running and takes over.
 
 Keys in the popup:
-  0          paste the normal clipboard (the old Ctrl+V)
+  Enter      right after Ctrl+V: paste the normal clipboard (the old Ctrl+V)
   1-9        choose an item          Up/Down + Enter  move and choose
   Backspace  go back                 Esc              close
   Esc or Ctrl+Z while lines are being sent stops the sending
@@ -1217,7 +1217,7 @@ class Popup:
         """Creates one row's widgets. Returns (row frame, widgets that get the hover colour)."""
         row = tk.Frame(self.list_frame, bg=ROW, cursor="hand2")
         color = item.get("color")
-        badge = tk.Label(row, text=item.get("key", ""), width=2, bg=color or BADGE_BG,
+        badge = tk.Label(row, text=item.get("badge", item.get("key", "")), width=2, bg=color or BADGE_BG,
                          fg=BG if color else FG, font=(FONT, 9, "bold"))
         badge.pack(side="left", padx=(6, 8), pady=6, anchor="n")
         if item.get("remove"):   # bin button on the far right: remove this file / entry
@@ -1286,8 +1286,12 @@ class Popup:
         return row, widgets
 
     def _first_selectable(self):
+        """Which row Enter picks. Main menu with an empty search: '0 Paste clipboard normally', so
+        Ctrl+V then Enter pastes as usual. Once you type a search: the first matching result."""
+        if not self._applied_query.strip():
+            return 0
         for i, it in enumerate(self.items):
-            if it.get("key") not in ("0",):
+            if not it.get("paste_row"):
                 return i
         return 0
 
@@ -1352,7 +1356,8 @@ class Popup:
     # ---- screens
     def show_files(self):
         files_sig = self._files_signature()
-        items = [{"key": "0", "label": "Paste clipboard normally", "sub": self._clip_preview(),
+        items = [{"key": "", "badge": "⏎", "paste_row": True,   # Enter = paste normally (it's highlighted)
+                  "label": "Paste clipboard normally", "sub": self._clip_preview(),
                   "action": self.normal_paste}]
         colored = 0
         for n, path in enumerate(list_files(), start=1):
@@ -1386,7 +1391,7 @@ class Popup:
         items.append({"key": "", "label": "⌨  Type the clipboard", "always": True,   # last row
                       "sub": "for boxes that block paste: types what you copied key by key (no Enter)",
                       "action": self.type_clipboard})
-        hint = "type to search this list • 0-9 + ? • ↑↓ Enter • Tab mode"
+        hint = "Enter paste • type to search • 1-9 + ? • ↑↓ • Tab mode"
         if not any(it.get("view") for it in items):     # no snippet files at all yet
             items.insert(1, {"key": "", "label": "Welcome! You have no snippet files yet",
                              "sub": "Click ＋ New text file below (or copy text and press Ctrl+C twice). "
@@ -2568,7 +2573,7 @@ class Popup:
         self._note(lf, "freestyle.txt (or any file with no headers) works like ::: for the whole file.")
         self._note(lf, "Avoid ending a message line with ':' - it would become a header.", color=WARN)
         self._section(lf, "HANDY")
-        self._note(lf, "Ctrl+V          open this menu        (0 = normal paste)\n"
+        self._note(lf, "Ctrl+V          open this menu   (then Enter = normal paste)\n"
                        "Ctrl+C twice    save what you copied  (new file, section, freestyle...)\n"
                        "Tab             Auto send / Confirm / Edit first\n"
                        "Right-click     edit a snippet / view a file\n"
