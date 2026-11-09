@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050b18">
+<title>CHS GreenHive · Heat Map and Smart Misting</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#050b18;--card:#0b1630;--card2:#101e3d;--bd:#1a2b52;--tx:#e9eefb;--mut:#8b9ac0;--or:#f97316;--gr:#34d399;--navy:#0b1530;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+body{display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top,0px)}
+header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(90deg,#0a1226,#1a1320);border-bottom:1px solid #1b2440}
+.logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#fb923c,#f97316);display:grid;place-items:center;font-weight:800;color:#2a1200;font-size:14px;flex:none}
+.tt{flex:none}.tt small{display:block;color:var(--or);font-size:11px;letter-spacing:.22em;font-weight:700}.tt span{font-size:12px;color:var(--mut)}.tt span b{color:#fbbf24}
+.sr{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:#0e1730;border:1px solid var(--bd);border-radius:14px;padding:0 10px}
+.sr input{flex:1;min-width:0;background:none;border:0;color:var(--tx);font:inherit;padding:11px 0;outline:0}
+#app{flex:1;position:relative;min-height:0}
+.v{position:absolute;inset:0;display:none}.v.on{display:block}
+.pn{overflow:auto;padding:14px 14px 20px;background:var(--bg)}
+#map{position:absolute;inset:0;background:#0a1830}
+.leaflet-container{font:inherit}
+.leaflet-tile-pane.dk{filter:invert(1) hue-rotate(180deg) saturate(.6) brightness(.9) contrast(.95)}
+.wbox{background:#fff;color:#0b1530;border-radius:16px;box-shadow:0 3px 12px #0006;z-index:500;position:absolute}
+.tg{top:12px;left:12px;display:flex;padding:4px;gap:2px}
+.tg button{width:48px;height:42px;border:0;border-radius:12px;background:none;font-size:20px;cursor:pointer}
+.tg button.on{background:var(--navy)}
+.flr{top:12px;right:12px;width:58px;padding:8px 4px;text-align:center}
+.flr small{display:block;font-size:10px;letter-spacing:.2em;color:#51618a;font-weight:700;margin-bottom:4px}
+.flr button{display:block;width:100%;height:40px;border:0;background:none;font:700 16px inherit;font-family:inherit;color:#51618a;border-radius:12px;cursor:pointer}
+.flr button.on{background:var(--or);color:#fff}
+.stk{right:12px;bottom:22px;display:flex;flex-direction:column;gap:6px;background:none;box-shadow:none}
+.stk button{width:50px;height:46px;border:0;border-radius:14px;background:#fff;color:#0b1530;font-size:22px;box-shadow:0 3px 12px #0006;cursor:pointer}
+.lg{left:12px;bottom:22px;display:flex;gap:14px;padding:12px 16px;font-size:15px;color:#33415f}
+.lg i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px}
+.lift .stk,.lift .lg{bottom:204px}
+#attr{position:absolute;right:6px;bottom:3px;font-size:10px;color:#fff;text-shadow:0 0 3px #000;z-index:400}
+.mk{position:absolute;left:0;top:0;width:0;height:0}
+.ring{position:absolute;left:-30px;top:-30px;width:60px;height:60px;border-radius:50%;padding:4px;background:linear-gradient(135deg,#fb923c,#a855f7);box-shadow:0 3px 10px #0009;cursor:pointer}
+.in{width:100%;height:100%;border-radius:50%;display:grid;place-items:center;font:800 17px system-ui;color:#fff;border:2px solid #fff3}
+.bd{position:absolute;left:12px;top:-34px;min-width:26px;height:26px;padding:0 6px;border-radius:13px;background:var(--navy);color:#fff;border:2px solid #fff;font:700 13px system-ui;display:grid;place-items:center}
+.bub{position:absolute;left:34px;top:-18px;background:#fff;color:var(--navy);font:700 14px system-ui;padding:7px 11px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 10px #0007;display:none}
+.lt{position:absolute;left:-60px;top:32px;width:120px;text-align:center;font:700 10px system-ui;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
+.misting{stroke:#38bdf8!important;stroke-dasharray:5 6;animation:dash .8s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-11}}
+.heat{filter:blur(12px)}
+.dr{font-size:14px;animation:rise 1s ease-out forwards}
+@keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-22px)}}
+#card{position:absolute;left:10px;right:10px;bottom:10px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:14px;z-index:600;display:none;box-shadow:0 -4px 20px #0009}
+#card.on{display:block}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:12px;margin-bottom:12px}
+h2{font-size:12px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em}
+.t{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:700;font-size:13px;color:#fff}
+.sub{color:var(--mut);font-size:13px}.sub u{text-decoration:none;color:var(--or);font-weight:700}
+.title{display:flex;justify-content:space-between;align-items:center;gap:8px}.title b{font-size:18px}
+.btn{border-radius:14px;padding:12px 16px;font:700 15px inherit;font-family:inherit;background:var(--card2);color:var(--tx);cursor:pointer;border:1px solid var(--bd)}
+.btn.p{background:var(--or);color:#fff;border:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--bd);cursor:pointer}
+.row:first-child{border-top:0}
+.opt{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:14px;margin-bottom:8px;background:var(--card2);cursor:pointer}
+.opt.on{border-color:var(--or);box-shadow:inset 0 0 0 1px var(--or)}
+.step{font-size:12px;color:var(--or);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.ctl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0}
+input[type=range]{flex:1;accent-color:#f97316}
+.tank{height:8px;background:var(--bd);border-radius:6px;overflow:hidden}.tank i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,var(--gr))}
+nav{display:flex;background:#fff;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));align-items:flex-end;position:relative;z-index:700}
+nav button{flex:1;border:0;background:none;color:#51618a;padding:6px 0;font:600 14px inherit;font-family:inherit;cursor:pointer}
+nav button span{display:block;font-size:24px;line-height:1.1}
+nav button.on{color:#0b1530}
+nav .fab{flex:1;display:flex;justify-content:center;margin-top:-26px}
+nav .fab button{flex:none;width:62px;height:62px;border-radius:20px;background:var(--or);color:#fff;font-size:30px;box-shadow:0 6px 16px #f9731666;padding:0;line-height:1}
+nav .fab+button{}
+nav .fl{flex:1;text-align:center;font:600 14px system-ui;color:#51618a}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 84px);transform:translateX(-50%);background:var(--or);color:#fff;font-weight:700;padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:1000}
+pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radius:8px}
+</style></head><body>
+<header><div class="logo">CHS</div><div class="tt"><small>CHS · GREENHIVE</small><span>Smart <b>misting</b></span></div>
+<label class="sr"><span>🔍</span><input id="q" placeholder="Search zones…" aria-label="Search zones"></label></header>
+<div id="app">
+<section class="v on" id="vMap"><div id="map"></div>
+<div class="wbox tg" id="tg"><button data-m="sat" class="on" aria-label="Satellite">🌐</button><button data-m="st" aria-label="Street map">🗺</button><button data-m="heat" aria-label="Heat only">▦</button></div>
+<div class="wbox flr" id="flr"><small>HEAT</small><button data-f="all" class="on">All</button><button data-f="hot">Hot</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mist">💦</button></div>
+<div class="wbox lg"><span><i style="background:hsl(190,85%,48%)"></i>Cool</span><span><i style="background:hsl(65,85%,48%)"></i>Warm</span><span><i style="background:hsl(5,85%,48%)"></i>Hot</span></div>
+<div class="wbox stk"><button id="zi">＋</button><button id="zo">－</button><button id="home" aria-label="Fit campus">⌂</button><button id="loc" aria-label="My location">◎</button></div>
+<div id="attr"></div><div id="card"></div></section>
+
+<section class="v pn" id="vZones"><h2>Zones · hottest first</h2><div class="card" id="list"></div></section>
+
+<section class="v pn" id="vMist"><div class="card"><div class="step" id="stepL"></div><div style="font-size:20px;font-weight:700;margin:4px 0 10px" id="stepT"></div><div id="stepB"></div>
+<div class="acts"><button class="btn" id="back">Back</button><button class="btn p" id="next">Next</button></div></div></section>
+
+<section class="v pn" id="vDesk">
+<div class="card"><h2>Water tank</h2><div class="title"><b id="tankV"></b><button class="btn" id="refill">Refill</button></div><div class="tank" style="margin-top:8px"><i id="tankB"></i></div></div>
+<div class="card"><h2>Automation</h2>
+<div class="ctl"><label for="auto">Auto-mist when hot</label><input type="checkbox" id="auto" checked></div>
+<div class="ctl"><span>Trigger at <b id="thrV"></b>°C</span><input type="range" id="thr" min="30" max="42" step="0.5"></div>
+<div class="ctl"><span>Time <b id="hrV" style="color:var(--or)"></b></span><input type="range" id="hour" min="0" max="23.75" step="0.25"></div>
+<div class="ctl"><label for="guard">Class-hours guard (7:00–16:00, skips kid-traffic zones)</label><input type="checkbox" id="guard" checked></div>
+<div class="ctl"><label for="rain">Rain mode (skip auto)</label><input type="checkbox" id="rain"></div>
+<div class="acts"><button class="btn" id="wave">🔥 Heatwave +4°</button><button class="btn" id="clr">Clear log</button></div></div>
+<div class="card"><h2>Align zones to the real map</h2><div class="sub">Pan the map so the campus is centered, then tap Center. Arrows nudge 5 m.</div>
+<div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nU">↑</button><button class="btn" id="nD">↓</button><button class="btn" id="nL">←</button><button class="btn" id="nR">→</button><button class="btn" id="nZ">Reset</button></div></div>
+<div class="card"><h2>Trigger log</h2><div id="log"></div></div></section>
+
+<section class="v pn" id="vHelp">
+<div class="card"><h2>How GreenHive works</h2><div class="sub">1. Each circle on the map is a zone. Its color is the temperature and the dark badge is how many times it was triggered in the last 24 h.<br>2. Tap a zone for its card, then mist it by hand, or use the orange + button for a guided request.<br>3. Auto mode starts misting when a zone passes your trigger temperature.<br>4. The line under each circle shows when it last triggered.</div></div>
+<div class="card"><h2>Where the data comes from</h2><div class="sub" style="margin-bottom:6px"><b style="color:#fbbf24">Sample data:</b> no real sensors are connected yet. Every reading is simulated in this page.</div><div id="data"></div></div></section>
+</div>
+
+<nav><button class="on" data-v="vMap"><span>🗺</span>Map</button><button data-v="vZones"><span>▦</span>Zones</button>
+<div class="fab"><button id="fab" aria-label="Start misting">＋</button></div>
+<button data-v="vDesk"><span>🏫</span>Desk</button><button data-v="vHelp"><span>❔</span>Help</button></nav>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const Z=[
+{id:'forest',n:'CHS Forest Park',s:'Forest Park',k:'forest park trees garden',cx:200,cy:132,b:-3.5,lps:1.2,type:'park'},
+{id:'main',n:'Commonwealth High School',s:'Main Building',k:'main building school classrooms',cx:135,cy:290,b:1.5,lps:1.5},
+{id:'court',n:'CHS Covered Court',s:'Covered Court',k:'covered court basketball gym',cx:232,cy:290,b:2,lps:2,kids:1},
+{id:'g1112',n:'Grade 11 & 12 Building',s:'G11–12 Bldg',k:'grade 11 12 building construction',cx:57,cy:330,b:2.5,lps:1.5},
+{id:'park',n:'CHS Parking Lot',s:'Parking Lot',k:'parking lot cars',cx:190,cy:445,b:4,lps:2.5,type:'lot'},
+{id:'front',n:'Ocampo Ave Frontage',s:'Ocampo Frontage',k:'ocampo avenue frontage gate entrance',cx:180,cy:50,b:1.5,lps:1,kids:1}];
+Z.forEach(z=>{z.until=0;z.cool=0;z.noise=0;z.t=30});
+const d0=new Date();
+let S={thr:36,hour:d0.getHours()+d0.getMinutes()/60,heat:0,tank:1000,sel:'court',card:false,last:{},log:[],auto:true,guard:true,rain:false,mode:'sat',f:'all',q:'',step:1,tz:'court',tm:10};
+try{const o=JSON.parse(localStorage.getItem('greenhive')||'null');if(o)Object.assign(S,{last:o.last||{},log:o.log||[],tank:o.tank??1000,thr:o.thr??36})}catch(e){}
+if(!S.log.length){[['park',190],['court',95],['g1112',60],['main',31]].forEach(([id,m])=>{const t=Date.now()-m*60000;S.log.push({id,t,mode:'auto',temp:37.2,l:20});S.last[id]=t});S.log.sort((a,b)=>b.t-a.t)}
+const save=()=>{try{localStorage.setItem('greenhive',JSON.stringify({last:S.last,log:S.log.slice(0,60),tank:S.tank,thr:S.thr}))}catch(e){}};
+const col=t=>`hsl(${Math.round(190-Math.min(1,Math.max(0,(t-28)/12))*185)},85%,48%)`;
+const diur=h=>26+8*Math.max(0,Math.sin(Math.PI*(h-6)/12));
+const temp=z=>diur(S.hour)+S.heat+z.b+z.noise-z.cool;
+const hum=z=>Math.round(Math.min(98,Math.max(30,85-(temp(z)-24)*2.2+(z.id=='forest'?8:0)+(S.rain?12:0))));
+const ago=t=>{const s=Math.floor((Date.now()-t)/1000);return s<60?s+'s ago':s<3600?Math.floor(s/60)+' min ago':Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m ago'};
+const hm=h=>String(Math.floor(h)).padStart(2,'0')+':'+String(Math.round(h%1*60)).padStart(2,'0');
+const toast=m=>{const e=$('#toast');e.textContent=m;e.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.opacity=0,1800)};
+const zn=id=>Z.find(x=>x.id==id),active=z=>z.until>Date.now();
+const cnt=z=>S.log.filter(e=>e.id==z.id&&Date.now()-e.t<864e5).length;
+// map
+const C0=[14.6989528,121.0816278],MU=0.28,KL=Math.cos(C0[0]*Math.PI/180);
+let OFF={la:0,ln:0};try{OFF=JSON.parse(localStorage.getItem('gh_off'))||OFF}catch(e){}
+const proj=(x,y)=>[C0[0]-(y-255)*MU/111320+OFF.la,C0[1]+(x-165)*MU/(111320*KL)+OFF.ln];
+const R=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+const PTS={forest:[[150,170],[140,120],[155,80],[200,64],[245,80],[260,120],[250,170]],main:R(95,215,80,130),court:R(180,215,105,130),g1112:R(30,215,55,200),park:R(95,385,190,95),front:R(60,14,240,40)};
+const BND=R(18,6,290,490);
+const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,zoomSnap:.25}).setView(C0,18);
+const base={st:L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})};
+function setBase(){Object.values(base).forEach(l=>map.removeLayer(l));if(S.mode!='heat')base[S.mode].addTo(map);map.getPane('tilePane').classList.toggle('dk',S.mode=='st');
+$('#attr').textContent=S.mode=='sat'?'Imagery © Esri, Maxar, Earthstar':S.mode=='st'?'© OpenStreetMap contributors':'';
+document.querySelectorAll('#tg button').forEach(b=>b.classList.toggle('on',b.dataset.m==S.mode))}
+const bnd=L.polygon(BND.map(p=>proj(...p)),{color:'#f59e0b',weight:3,dashArray:'12 9',fill:false,interactive:false}).addTo(map);
+Z.forEach(z=>{z.R=z.type=='lot'||z.id=='front'?38:30;
+z.heat=L.circle(proj(z.cx,z.cy-5),{radius:z.R,stroke:false,fillOpacity:.45,className:'heat',interactive:false}).addTo(map);
+z.poly=L.polygon(PTS[z.id].map(p=>proj(...p)),{color:'#fbbf24',weight:1.5,fillColor:'#fff',fillOpacity:.06}).addTo(map);
+z.mk=L.marker(proj(z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="mk"><div class="ring"><div class="in"></div></div><div class="bd"></div><div class="bub"></div><div class="lt"></div></div>'}),zIndexOffset:100}).addTo(map);
+const pick=()=>{S.sel=z.id;S.card=true;draw()};z.poly.on('click',pick);z.mk.on('click',pick)});
+function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>proj(...p)));z.heat.setLatLng(proj(z.cx,z.cy-5));z.mk.setLatLng(proj(z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_off',JSON.stringify(OFF))}catch(e){}}
+const fit=()=>map.fitBounds(bnd.getBounds(),{padding:[16,16]});
+setBase();fit();
+function go(id,sec,mode){const z=zn(id),l=Math.round(sec*z.lps);
+if(S.tank<l){toast('Tank too low – refill first');return false}
+S.tank-=l;z.until=Math.max(z.until,Date.now())+sec*1000;S.last[id]=Date.now();
+S.log.unshift({id,t:Date.now(),mode,temp:+temp(z).toFixed(1),l});save();
+toast((mode=='auto'?'🤖 Auto-mist · ':'💧 Misting · ')+z.s);draw();return true}
+window.go=go;window.S=S;window.Z=Z;window.zn=zn;
+const fm=z=>S.f=='all'||(S.f=='hot'&&z.t>=S.thr)||(S.f=='warm'&&z.t>=33&&z.t<S.thr)||(S.f=='cool'&&z.t<33)||(S.f=='mist'&&active(z));
+const hit=z=>!S.q||(z.n+' '+z.k).toLowerCase().includes(S.q);
+function stepUI(){
+const T=['Choose a zone','Choose how much','Review and confirm'];
+$('#stepL').textContent='Mist · step '+S.step+' of 3';$('#stepT').textContent=T[S.step-1];
+$('#back').style.visibility=S.step>1?'visible':'hidden';$('#next').textContent=S.step==3?'Start misting':'Next';
+let h='';
+if(S.step==1)h=Z.map(z=>`<div class="opt ${z.id==S.tz?'on':''}" onclick="S.tz='${z.id}';stepUI()"><div><b>${z.n}</b><div class="sub">${S.last[z.id]?'Last: '+ago(S.last[z.id]):'Never triggered'}</div></div><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°</span></div>`).join('');
+if(S.step==2)h=[[10,'Mist','light cool-down'],[30,'Soak','watering'],[60,'Deep soak','extended']].map(o=>`<div class="opt ${o[0]==S.tm?'on':''}" onclick="S.tm=${o[0]};stepUI()"><div><b>${o[1]} · ${o[0]}s</b><div class="sub">${o[2]} · about ${Math.round(o[0]*zn(S.tz).lps)} L</div></div></div>`).join('');
+if(S.step==3){const z=zn(S.tz);h=`<div class="opt"><div><b>${z.n}</b><div class="sub">${S.tm}s · about ${Math.round(S.tm*z.lps)} L · now ${z.t.toFixed(1)}°C</div></div></div>`}
+$('#stepB').innerHTML=h}
+function draw(){
+Z.forEach(z=>z.t=temp(z));
+Z.forEach(z=>{const on=fm(z)&&hit(z),e=z.mk.getElement(),pe=z.poly.getElement(),h=S.mode=='heat';
+z.heat.setStyle({fillColor:col(z.t),fillOpacity:h?.7:.4});
+z.poly.setStyle({color:z.id==S.sel?'#fff':'#fbbf24',weight:z.id==S.sel?3:1.5,fillColor:col(z.t),fillOpacity:h?.55:.06});
+if(pe)pe.classList.toggle('misting',active(z));
+if(e){e.style.opacity=on?1:.3;e.querySelector('.in').style.background=col(z.t);e.querySelector('.in').textContent=Math.round(z.t)+'°';
+const c=cnt(z),bd=e.querySelector('.bd');bd.textContent=c;bd.style.display=c?'':'none';
+e.querySelector('.lt').textContent=active(z)?'💦 '+Math.ceil((z.until-Date.now())/1000)+'s left':S.last[z.id]?'💧 '+ago(S.last[z.id]):'no trigger yet';
+const b=e.querySelector('.bub');b.style.display=S.card&&S.sel==z.id?'block':'none';b.textContent=z.s}});
+const z=zn(S.sel),pk=34+S.heat+z.b;
+$('#card').classList.toggle('on',S.card);$('#vMap').classList.toggle('lift',S.card);
+if(S.card)$('#card').innerHTML=`<div class="title"><b>${z.n}</b><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°C</span><button class="btn" style="padding:4px 10px" onclick="S.card=false;draw()">✕</button></div>
+<div class="sub" style="margin-top:4px">${active(z)?'<b style="color:var(--gr)">Misting now</b>':S.last[z.id]?'Last triggered <b>'+ago(S.last[z.id])+'</b>':'Never triggered'} · Humidity ${hum(z)}% · Peak ≈ ${pk.toFixed(1)}°</div>
+<div class="sub">${z.t>=S.thr?'<b style="color:#fb7185">Above auto-trigger ('+S.thr+'°)</b>':'Below auto-trigger ('+S.thr+'°)'}${z.kids?' · kid-traffic zone':''}</div>
+<div class="acts"><button class="btn p" onclick="go('${z.id}',10,'manual')">💨 Mist 10s</button><button class="btn" onclick="go('${z.id}',30,'manual')">🌿 Soak 30s</button><button class="btn" onclick="zn('${z.id}').until=0">⏹ Stop</button></div>`;
+$('#list').innerHTML=Z.filter(z=>fm(z)&&hit(z)).sort((a,b)=>b.t-a.t).map(z=>`<div class="row" onclick="S.sel='${z.id}';S.card=true;show('vMap');draw();map.panTo(zn('${z.id}').mk.getLatLng())"><div><b>${z.n}</b><div class="sub">${active(z)?'💦 misting now':S.last[z.id]?'Last: '+ago(S.last[z.id]):'Never triggered'} · ${cnt(z)} today</div></div><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°</span></div>`).join('')||'<div class="sub">No zones match.</div>';
+$('#tankV').textContent=Math.round(S.tank/10)+'% · '+Math.round(S.tank)+' L';$('#tankB').style.width=S.tank/10+'%';
+$('#log').innerHTML=S.log.slice(0,10).map(e=>`<div class="row" style="cursor:default"><div><b>${zn(e.id).s}</b><div class="sub">${e.mode=='auto'?'🤖 Auto':'👆 Manual'} · ${e.temp}°C · ${e.l} L</div></div><span class="sub">${ago(e.t)}</span></div>`).join('')||'<div class="sub">No triggers yet</div>'}
+function tick(){
+Z.forEach(z=>{z.noise=Math.max(-1.2,Math.min(1.2,z.noise+(Math.random()-.5)*.3));
+z.cool=active(z)?Math.min(4,z.cool+.4):z.cool*.97;
+if(S.auto&&!S.rain&&!active(z)&&temp(z)>=S.thr&&Date.now()-(S.last[z.id]||0)>25000&&!(S.guard&&z.kids&&S.hour>=7&&S.hour<16))go(z.id,8,'auto')});
+draw()}
+setInterval(tick,1000);
+setInterval(()=>Z.forEach(z=>{if(!active(z))return;const bd=z.poly.getBounds();for(let i=0;i<3;i++){const p=[bd.getSouth()+Math.random()*(bd.getNorth()-bd.getSouth()),bd.getWest()+Math.random()*(bd.getEast()-bd.getWest())];const d=L.marker(p,{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="dr">💧</div>'}),interactive:false}).addTo(map);setTimeout(()=>d.remove(),1000)}}),350);
+// data sources
+const DATA=[
+['Temperature (°C)','Simulated per zone: 26° base plus up to 8° on a midday curve, plus a zone offset (parking +4, G11–12 +2.5, court +2, main and frontage +1.5, forest −3.5), plus heatwave, small random drift, minus misting cool-down (up to 4°).','One SHT31 or DHT22 sensor per zone on an ESP32, sent by MQTT or REST.'],
+['Humidity (%)','Calculated from temperature: 85 − 2.2 × (temp − 24), forest +8, rain mode +12.','The same SHT31 or DHT22 sensor.'],
+['Forecast peak','34° plus the zone offset and heatwave.','A weather forecast API such as Open-Meteo or PAGASA.'],
+['Time of day','Your device clock at start. The Desk slider overrides it for testing.','Server or device clock.'],
+['Auto-trigger','Starts a 8 s mist when a zone is at or above your trigger temperature, not already misting, 25 s since its last trigger, rain mode off, and not a kid-traffic zone during 7:00–16:00 if the guard is on.','Same rule, run on a server that talks to the valves.'],
+['Last triggered, log and badge','Written by this page each time a zone is triggered, saved in this browser only. The first four log entries are samples. The badge counts triggers in the last 24 h.','The valve controller writes each event to a shared database.'],
+['Water tank','Starts at 1000 L. Each trigger removes seconds × the zone’s L/s rate (forest 1.2, parking 2.5, and so on).','A tank level sensor and a flow meter.'],
+['Map imagery','Live tiles from Esri World Imagery (satellite) or OpenStreetMap (street). They need internet.','Same.'],
+['Campus location and zone shapes','The centre point 14.69895, 121.08163 comes from Wikipedia. Zone shapes were drawn from your Google Maps screenshot, so use Desk → Align to fit them to the real buildings.','Trace zones on the real building outlines.']];
+$('#data').innerHTML=DATA.map(d=>`<div class="row" style="cursor:default;display:block"><b>${d[0]}</b><div class="sub"><u>Now:</u> ${d[1]}</div><div class="sub"><u>Real:</u> ${d[2]}</div></div>`).join('');
+// nav + controls
+function show(v){document.querySelectorAll('.v').forEach(x=>x.classList.toggle('on',x.id==v));document.querySelectorAll('nav button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v==v));if(v=='vMap')setTimeout(()=>map.invalidateSize(),60)}
+document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>show(b.dataset.v));
+$('#fab').onclick=()=>{S.tz=S.sel;S.step=1;stepUI();show('vMist')};
+document.querySelectorAll('#tg button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;setBase();draw()});
+document.querySelectorAll('#flr button').forEach(b=>b.onclick=()=>{S.f=b.dataset.f;document.querySelectorAll('#flr button').forEach(x=>x.classList.toggle('on',x==b));draw()});
+$('#zi').onclick=()=>map.zoomIn();$('#zo').onclick=()=>map.zoomOut();$('#home').onclick=fit;
+$('#loc').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.latitude,p.coords.longitude];L.circleMarker(ll,{radius:8,color:'#fff',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);map.setView(ll,18)},()=>toast('Location unavailable')):toast('Location unavailable');
+$('#q').oninput=e=>{S.q=e.target.value.trim().toLowerCase();const f=Z.find(z=>hit(z));if(S.q&&f){S.sel=f.id;S.card=true;map.panTo(f.mk.getLatLng())}draw()};
+$('#next').onclick=()=>{if(S.step<3){S.step++;stepUI()}else if(go(S.tz,S.tm,'manual')){S.sel=S.tz;S.step=1;show('vMap')}};
+$('#back').onclick=()=>{S.step--;stepUI()};
+$('#auto').onchange=e=>S.auto=e.target.checked;$('#guard').onchange=e=>S.guard=e.target.checked;$('#rain').onchange=e=>S.rain=e.target.checked;
+$('#thr').value=S.thr;$('#thrV').textContent=S.thr;$('#thr').oninput=e=>{S.thr=+e.target.value;$('#thrV').textContent=S.thr;save();draw()};
+$('#hour').value=S.hour;$('#hrV').textContent=hm(S.hour);$('#hour').oninput=e=>{S.hour=+e.target.value;$('#hrV').textContent=hm(S.hour);draw()};
+$('#wave').onclick=()=>{S.heat=S.heat?0:4;$('#wave').textContent=S.heat?'☀️ End heatwave':'🔥 Heatwave +4°';draw()};
+$('#refill').onclick=()=>{S.tank=1000;save();draw();toast('Tank refilled')};
+$('#clr').onclick=()=>{S.log=[];S.last={};save();draw()};
+const nudge=(dy,dx)=>{OFF.la+=dy*5/111320;OFF.ln+=dx*5/(111320*KL);place()};
+$('#nU').onclick=()=>nudge(1,0);$('#nD').onclick=()=>nudge(-1,0);$('#nL').onclick=()=>nudge(0,-1);$('#nR').onclick=()=>nudge(0,1);
+$('#nZ').onclick=()=>{OFF={la:0,ln:0};place();toast('Alignment reset')};
+$('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);OFF.la+=c.lat-p[0];OFF.ln+=c.lng-p[1];place();toast('Zones centered on map view')};
+stepUI();draw();
+</script></body></html>
