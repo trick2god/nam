@@ -5,136 +5,120 @@
 <title>CHS GreenHive · Heat Map and Smart Misting</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <style>
-:root{--bg:#050b18;--card:#0b1630;--card2:#101e3d;--bd:#1a2b52;--tx:#e9eefb;--mut:#8b9ac0;--or:#f97316;--gr:#34d399;--navy:#0b1530;color-scheme:dark}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
-body{display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top,0px)}
-header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:linear-gradient(90deg,#0a1226,#1a1320);border-bottom:1px solid #1b2440}
-.logo{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#fb923c,#f97316);display:grid;place-items:center;font-weight:800;color:#2a1200;font-size:14px;flex:none}
-.tt{flex:none}.tt small{display:block;color:var(--or);font-size:11px;letter-spacing:.22em;font-weight:700}.tt span{font-size:12px;color:var(--mut)}.tt span b{color:#fbbf24}
-.sr{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:#0e1730;border:1px solid var(--bd);border-radius:14px;padding:0 10px}
-.sr input{flex:1;min-width:0;background:none;border:0;color:var(--tx);font:inherit;padding:11px 0;outline:0}
-#app{flex:1;position:relative;min-height:0}
-.v{position:absolute;inset:0;display:none}.v.on{display:block}
-.pn{overflow:auto;padding:14px 14px 20px;background:var(--bg)}
-#map{position:absolute;inset:0;background:#0a1830}
+:root{--bg:#050b18;--card:#0b1630;--card2:#101e3d;--bd:#1a2b52;--tx:#e9eefb;--mut:#8b9ac0;--ac:#34d399;--ac2:#22d3ee;--hot:#fb7185;color-scheme:dark;box-sizing:border-box}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+.w{max-width:560px;margin:0 auto;padding:0 14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0 10px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:grid;place-items:center;font-weight:800;color:#04201a;font-size:13px}
+.brand b{display:block;font-size:16px}.brand span{font-size:12px;color:var(--mut)}
+.pill{border:1px solid var(--bd);background:var(--card);color:var(--mut);border-radius:99px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.pill.on{color:var(--ac);border-color:var(--ac)}
+.seg{display:flex;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:4px;gap:4px;flex:1}
+.seg button{flex:1;border:0;background:none;color:var(--mut);padding:8px;border-radius:10px;font:600 14px inherit;font-family:inherit;cursor:pointer}
+.seg button.on{background:var(--card2);color:var(--tx);box-shadow:inset 0 0 0 1px var(--ac)}
+.bar{display:flex;gap:8px;align-items:center;margin:6px 0 10px}
+.search{width:100%;background:var(--card);border:1px solid var(--bd);border-radius:14px;color:var(--tx);padding:12px 14px;font:inherit}
+.hint{font-size:12px;color:var(--mut);margin:6px 2px 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:12px;margin-bottom:12px}
+#map{height:58vh;min-height:340px;border-radius:14px;background:#0a1830}
 .leaflet-container{font:inherit}
 .leaflet-tile-pane.dk{filter:invert(1) hue-rotate(180deg) saturate(.6) brightness(.9) contrast(.95)}
-.wbox{background:#fff;color:#0b1530;border-radius:16px;box-shadow:0 3px 12px #0006;z-index:500;position:absolute}
-.tg{top:12px;left:12px;display:flex;padding:4px;gap:2px}
-.tg button{width:48px;height:42px;border:0;border-radius:12px;background:none;font-size:20px;cursor:pointer}
-.tg button.on{background:var(--navy)}
-.tg button#edit.on,.tg button#cal.on{background:var(--or)}
-#lay{top:68px;left:12px;display:none}#lay.on{display:grid}
-.lay{grid-template-columns:repeat(4,46px);gap:4px;padding:6px;display:grid}
-.lay button{height:42px;border:0;border-radius:10px;background:#eef1f8;color:#0b1530;font-size:19px;cursor:pointer}
-#layD{position:static;box-shadow:none;background:none;padding:0;margin-top:8px;display:grid}#layD button{background:var(--card2);color:var(--tx)}
-#banner{top:68px;left:12px;right:82px;padding:10px 14px;font-weight:700;display:none;background:var(--or);color:#fff;font-size:14px}
-#map.cal .leaflet-marker-pane{display:none}
-.flr{top:12px;right:12px;width:58px;padding:8px 4px;text-align:center}
-.flr small{display:block;font-size:10px;letter-spacing:.2em;color:#51618a;font-weight:700;margin-bottom:4px}
-.flr button{display:block;width:100%;height:40px;border:0;background:none;font:700 16px inherit;font-family:inherit;color:#51618a;border-radius:12px;cursor:pointer}
-.flr button.on{background:var(--or);color:#fff}
-.stk{right:12px;bottom:22px;display:flex;flex-direction:column;gap:6px;background:none;box-shadow:none}
-.stk button{width:50px;height:46px;border:0;border-radius:14px;background:#fff;color:#0b1530;font-size:22px;box-shadow:0 3px 12px #0006;cursor:pointer}
-.lg{left:12px;bottom:22px;display:flex;gap:14px;padding:12px 16px;font-size:15px;color:#33415f}
-.lg i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px}
-.lift .stk,.lift .lg{bottom:204px}
-#attr{position:absolute;right:6px;bottom:3px;font-size:10px;color:#fff;text-shadow:0 0 3px #000;z-index:400}
-.editing .ring{box-shadow:0 0 0 4px #fff,0 3px 10px #0009;cursor:grab}
-.mk{position:absolute;left:0;top:0;width:0;height:0}
-.ring{position:absolute;left:-24px;top:-24px;width:48px;height:48px;border-radius:50%;padding:4px;background:linear-gradient(135deg,#fb923c,#a855f7);box-shadow:0 3px 10px #0009;cursor:pointer}
-.in{width:100%;height:100%;border-radius:50%;display:grid;place-items:center;font:800 14px system-ui;color:#fff;border:2px solid #fff3}
-.bd{position:absolute;left:8px;top:-30px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--navy);color:#fff;border:2px solid #fff;font:700 12px system-ui;display:grid;place-items:center}
-.bub{position:absolute;left:28px;top:-16px;background:#fff;color:var(--navy);font:700 14px system-ui;padding:7px 11px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 10px #0007;display:none}
-.lt{position:absolute;left:-60px;top:26px;width:120px;text-align:center;font:700 10px system-ui;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
+.pin{position:absolute;left:0;top:0;transform:translate(-50%,-30px);width:120px;display:flex;flex-direction:column;align-items:center;text-align:center;cursor:pointer}
+.pin .b{min-width:30px;height:30px;border-radius:50%;border:2px solid #fff;display:grid;place-items:center;font:700 12px system-ui;color:#fff;box-shadow:0 2px 6px #0008}
+.pin .n{font:700 11px system-ui;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000;margin-top:2px}
+.pin .l{font:600 10px system-ui;color:#7ff0c4;text-shadow:0 0 3px #000,0 0 3px #000}
+.heat{filter:blur(12px)}
 .misting{stroke:#38bdf8!important;stroke-dasharray:5 6;animation:dash .8s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-11}}
-.heat{filter:blur(12px)}
 .dr{font-size:14px;animation:rise 1s ease-out forwards}
 @keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-22px)}}
-#card{position:absolute;left:10px;right:10px;bottom:10px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:14px;z-index:600;display:none;box-shadow:0 -4px 20px #0009}
-#card.on{display:block}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:12px;margin-bottom:12px}
-h2{font-size:12px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em}
+.z{cursor:pointer}
+.drop{animation:fall .9s ease-out forwards;transform-box:fill-box}
+@keyframes fall{from{opacity:.95;transform:translateY(-6px)}to{opacity:0;transform:translateY(10px)}}
+.halo{paint-order:stroke;stroke:#050b18;stroke-width:3px;stroke-linejoin:round}
 .t{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:700;font-size:13px;color:#fff}
-.sub{color:var(--mut);font-size:13px}.sub u{text-decoration:none;color:var(--or);font-weight:700}
+.sub{color:var(--mut);font-size:13px}
 .title{display:flex;justify-content:space-between;align-items:center;gap:8px}.title b{font-size:18px}
-.btn{border-radius:14px;padding:12px 16px;font:700 15px inherit;font-family:inherit;background:var(--card2);color:var(--tx);cursor:pointer;border:1px solid var(--bd)}
-.btn.p{background:var(--or);color:#fff;border:0}
+.btn{border:0;border-radius:14px;padding:12px 16px;font:700 15px inherit;font-family:inherit;background:var(--card2);color:var(--tx);cursor:pointer;border:1px solid var(--bd)}
+.btn.p{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#04201a;border:0}
 .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--bd);cursor:pointer}
 .row:first-child{border-top:0}
 .opt{display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:14px;margin-bottom:8px;background:var(--card2);cursor:pointer}
-.opt.on{border-color:var(--or);box-shadow:inset 0 0 0 1px var(--or)}
-.step{font-size:12px;color:var(--or);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.opt.on{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
+h2{font-size:12px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em}
+.step{font-size:12px;color:var(--ac);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 .ctl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0}
-input[type=range]{flex:1;accent-color:#f97316}
-.tank{height:8px;background:var(--bd);border-radius:6px;overflow:hidden}.tank i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,var(--gr))}
-nav{display:flex;background:#fff;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));align-items:flex-end;position:relative;z-index:700}
-nav button{flex:1;border:0;background:none;color:#51618a;padding:6px 0;font:600 14px inherit;font-family:inherit;cursor:pointer}
-nav button span{display:block;font-size:24px;line-height:1.1}
-nav button.on{color:#0b1530}
-nav .fab{flex:1;display:flex;justify-content:center;margin-top:-26px}
-nav .fab button{flex:none;width:62px;height:62px;border-radius:20px;background:var(--or);color:#fff;font-size:30px;box-shadow:0 6px 16px #f9731666;padding:0;line-height:1}
-nav .fab+button{}
-nav .fl{flex:1;text-align:center;font:600 14px system-ui;color:#51618a}
-#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 84px);transform:translateX(-50%);background:var(--or);color:#fff;font-weight:700;padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:1000}
+input[type=range]{flex:1;accent-color:#34d399}
+.tank{height:8px;background:var(--bd);border-radius:6px;overflow:hidden}.tank i{display:block;height:100%;background:linear-gradient(90deg,var(--ac2),var(--ac))}
+nav{position:fixed;left:0;right:0;bottom:0;background:#08122a;border-top:1px solid var(--bd);display:flex;justify-content:center;padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));gap:6px}
+nav button{flex:1;max-width:180px;border:0;background:none;color:var(--mut);padding:8px 4px;border-radius:12px;font:600 12px inherit;font-family:inherit;cursor:pointer}
+nav button span{display:block;font-size:20px}
+nav button.on{color:var(--ac);background:var(--card)}
+.v{display:none}.v.on{display:block}
+#guide{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;justify-content:center;z-index:9}
+#guide.on{display:flex}
+#guide>div{background:var(--card);border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:560px;max-height:80%;overflow:auto;border:1px solid var(--bd)}
+#toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ac);color:#04201a;font-weight:700;padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;z-index:10}
 pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radius:8px}
-</style></head><body>
-<header><div class="logo">CHS</div><div class="tt"><small>CHS · GREENHIVE</small><span>Smart <b>misting</b></span></div>
-<label class="sr"><span>🔍</span><input id="q" placeholder="Search zones…" aria-label="Search zones"></label></header>
-<div id="app">
-<section class="v on" id="vMap"><div id="map"></div>
-<div class="wbox tg" id="tg"><button data-m="sat" class="on" aria-label="Satellite">🌐</button><button data-m="st" aria-label="Street map">🗺</button><button data-m="heat" aria-label="Heat only">▦</button><button id="cal" aria-label="Calibrate">📍</button><button id="edit" aria-label="Edit layout">✋</button></div>
-<div class="wbox flr" id="flr"><small>HEAT</small><button data-f="all" class="on">All</button><button data-f="hot">Hot</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mist">💦</button></div>
-<div class="wbox lg"><span><i style="background:hsl(190,85%,48%)"></i>Cool</span><span><i style="background:hsl(65,85%,48%)"></i>Warm</span><span><i style="background:hsl(5,85%,48%)"></i>Hot</span></div>
-<div class="wbox stk"><button id="zi">＋</button><button id="zo">－</button><button id="home" aria-label="Fit campus">⌂</button><button id="loc" aria-label="My location">◎</button></div>
-<div class="wbox" id="banner"></div><div class="wbox lay" id="lay"></div><div id="attr"></div><div id="card"></div></section>
+</style></head><body><div class="w">
+<header><div class="brand"><div class="logo">CHS</div><div><b>CHS GreenHive</b><span>Heat map and smart misting</span></div></div>
+<div style="display:flex;gap:6px"><button class="pill" title="Sensor readings are simulated">Sample data</button><button class="pill" id="gBtn">Guide</button></div></header>
 
-<section class="v pn" id="vZones"><h2>Zones · hottest first</h2><div class="card" id="list"></div></section>
+<section class="v on" id="vMap">
+<div class="bar"><div class="seg" id="seg"><button data-f="all" class="on">All</button><button data-f="hot">Hot</button><button data-f="mist">Misting</button></div><button class="pill on" id="heatT">Heat</button><button class="pill" id="baseT">Satellite</button></div>
+<input class="search" id="q" placeholder="Search a zone…" aria-label="Search a zone">
+<div class="hint">Tap a zone to see it on the map. Try “court”, “parking”, “gate”, “forest”.</div>
+<div class="card"><div id="map" role="application" aria-label="CHS GreenHive heat map"></div></div>
+<div class="card" id="sel"></div>
+<div class="card"><h2>Zones</h2><div id="list"></div></div>
+</section>
 
-<section class="v pn" id="vMist"><div class="card"><div class="step" id="stepL"></div><div style="font-size:20px;font-weight:700;margin:4px 0 10px" id="stepT"></div><div id="stepB"></div>
-<div class="acts"><button class="btn" id="back">Back</button><button class="btn p" id="next">Next</button></div></div></section>
+<section class="v" id="vTrig">
+<div class="card"><div class="step" id="stepL"></div><h2 style="margin-top:4px;font-size:18px;color:var(--tx);text-transform:none;letter-spacing:0" id="stepT"></h2><div id="stepB"></div>
+<div class="acts"><button class="btn" id="back">Back</button><button class="btn p" id="next">Next</button></div></div>
+</section>
 
-<section class="v pn" id="vDesk">
+<section class="v" id="vDesk">
 <div class="card"><h2>Water tank</h2><div class="title"><b id="tankV"></b><button class="btn" id="refill">Refill</button></div><div class="tank" style="margin-top:8px"><i id="tankB"></i></div></div>
 <div class="card"><h2>Automation</h2>
 <div class="ctl"><label for="auto">Auto-mist when hot</label><input type="checkbox" id="auto" checked></div>
 <div class="ctl"><span>Trigger at <b id="thrV"></b>°C</span><input type="range" id="thr" min="30" max="42" step="0.5"></div>
-<div class="ctl"><span>Time <b id="hrV" style="color:var(--or)"></b></span><input type="range" id="hour" min="0" max="23.75" step="0.25"></div>
+<div class="ctl"><span>Time <b id="hrV" style="color:var(--ac)"></b></span><input type="range" id="hour" min="0" max="23.75" step="0.25"></div>
 <div class="ctl"><label for="guard">Class-hours guard (7:00–16:00, skips kid-traffic zones)</label><input type="checkbox" id="guard" checked></div>
 <div class="ctl"><label for="rain">Rain mode (skip auto)</label><input type="checkbox" id="rain"></div>
 <div class="acts"><button class="btn" id="wave">🔥 Heatwave +4°</button><button class="btn" id="clr">Clear log</button></div></div>
-<div class="card"><h2>Align zones to the real map</h2><div class="sub">Best: tap 📍 on the map, then tap the school’s 3 corners. Or tap ✋ to drag circles. These buttons rotate, resize and move all zones together: ↺ ↻ rotate, − + size, arrows move.</div><div class="lay" id="layD"></div><div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nZ">Reset</button></div></div>
-<div class="card"><h2>Trigger log</h2><div id="log"></div></div></section>
+<div class="card"><h2>Align zones to the real map</h2><div class="sub">Pan the map so the campus is centered, then tap Center. Nudge moves the overlay 5 m.</div>
+<div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nU">↑</button><button class="btn" id="nD">↓</button><button class="btn" id="nL">←</button><button class="btn" id="nR">→</button><button class="btn" id="nZ">Reset</button></div></div>
+<div class="card"><h2>Trigger log</h2><div id="log"></div></div>
+</section></div>
 
-<section class="v pn" id="vHelp">
-<div class="card"><h2>How GreenHive works</h2><div class="sub">1. Each circle on the map is a zone. Its color is the temperature and the dark badge is how many times it was triggered in the last 24 h.<br>2. Tap a zone for its card, then mist it by hand, or use the orange + button for a guided request.<br>3. Auto mode starts misting when a zone passes your trigger temperature.<br>4. The line under each circle shows when it last triggered.</div></div>
-<div class="card"><h2>Where the data comes from</h2><div class="sub" style="margin-bottom:6px"><b style="color:#fbbf24">Sample data:</b> no real sensors are connected yet. Every reading is simulated in this page.</div><div id="data"></div></div></section>
-</div>
-
-<nav><button class="on" data-v="vMap"><span>🗺</span>Map</button><button data-v="vZones"><span>▦</span>Zones</button>
-<div class="fab"><button id="fab" aria-label="Start misting">＋</button></div>
-<button data-v="vDesk"><span>🏫</span>Desk</button><button data-v="vHelp"><span>❔</span>Help</button></nav>
+<nav><button class="on" data-v="vMap"><span>🗺</span>Map</button><button data-v="vTrig"><span>💧</span>Trigger</button><button data-v="vDesk"><span>⚙️</span>Desk</button></nav>
+<div id="guide"><div><h2>Guide</h2><b style="font-size:18px">How CHS GreenHive works</b>
+<p class="sub">1. The real map (OpenStreetMap or satellite) shows each zone colored by temperature, blue cool to red hot.<br>2. Tap a zone, then mist it by hand, or use the Trigger tab for a guided 3-step request.<br>3. Auto mode starts misting by itself when a zone passes your trigger temperature.<br>4. Every zone shows when it last triggered, and the Desk tab keeps the full log.<br>5. Readings here are simulated. To use real valves, replace go() with a call like:</p>
+<pre>POST /api/zones/court/mist
+{"seconds":10,"mode":"auto"}</pre><button class="btn p" id="gClose">Got it</button></div></div>
 <div id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
-const $=s=>document.querySelector(s);
+const $=s=>document.querySelector(s),NS='http://www.w3.org/2000/svg';
 const Z=[
-{id:'forest',n:'CHS Forest Park',s:'Forest Park',k:'forest park trees garden',cx:200,cy:132,b:-3.5,lps:1.2,type:'park'},
-{id:'main',n:'Commonwealth High School',s:'Main Building',k:'main building school classrooms',cx:135,cy:290,b:1.5,lps:1.5},
-{id:'court',n:'CHS Covered Court',s:'Covered Court',k:'covered court basketball gym',cx:232,cy:290,b:2,lps:2,kids:1},
-{id:'g1112',n:'Grade 11 & 12 Building',s:'G11–12 Bldg',k:'grade 11 12 building construction',cx:57,cy:330,b:2.5,lps:1.5},
-{id:'park',n:'CHS Parking Lot',s:'Parking Lot',k:'parking lot cars',cx:190,cy:445,b:4,lps:2.5,type:'lot'},
-{id:'front',n:'Ocampo Ave Frontage',s:'Ocampo Frontage',k:'ocampo avenue frontage gate entrance',cx:180,cy:50,b:1.5,lps:1,kids:1}];
+{id:'forest',n:'CHS Forest Park',s:'Forest Park',k:'forest park trees garden',d:'M150 170Q138 85 200 66Q262 85 250 170Z',cx:200,cy:132,b:-3.5,lps:1.2,type:'park'},
+{id:'main',n:'Commonwealth High School',s:'Main Building',k:'main building school classrooms',d:'M95 215h80v130H95z',cx:135,cy:290,b:1.5,lps:1.5},
+{id:'court',n:'CHS Covered Court',s:'Covered Court',k:'covered court basketball gym',d:'M180 215h105v130H180z',cx:232,cy:290,b:2,lps:2,kids:1},
+{id:'g1112',n:'Grade 11 & 12 Building',s:'G11–12 Bldg',k:'grade 11 12 building construction',d:'M30 215h55v200H30z',cx:57,cy:330,b:2.5,lps:1.5},
+{id:'park',n:'CHS Parking Lot',s:'Parking Lot',k:'parking lot cars',d:'M95 385h190v95H95z',cx:190,cy:445,b:4,lps:2.5,type:'lot'},
+{id:'front',n:'Ocampo Ave Frontage',s:'Ocampo Frontage',k:'ocampo avenue frontage gate entrance',d:'M60 14h240v40H60z',cx:180,cy:50,b:1.5,lps:1,kids:1}];
 Z.forEach(z=>{z.until=0;z.cool=0;z.noise=0;z.t=30});
 const d0=new Date();
-let S={thr:36,hour:d0.getHours()+d0.getMinutes()/60,heat:0,tank:1000,sel:'court',card:false,last:{},log:[],auto:true,guard:true,rain:false,mode:'sat',f:'all',q:'',step:1,tz:'court',tm:10};
+let S={thr:36,hour:d0.getHours()+d0.getMinutes()/60,heat:0,tank:1000,sel:'court',last:{},log:[],auto:true,guard:true,rain:false,layer:true,sat:false,f:'all',q:'',step:1,tz:'court',tm:10};
 try{const o=JSON.parse(localStorage.getItem('greenhive')||'null');if(o)Object.assign(S,{last:o.last||{},log:o.log||[],tank:o.tank??1000,thr:o.thr??36})}catch(e){}
 if(!S.log.length){[['park',190],['court',95],['g1112',60],['main',31]].forEach(([id,m])=>{const t=Date.now()-m*60000;S.log.push({id,t,mode:'auto',temp:37.2,l:20});S.last[id]=t});S.log.sort((a,b)=>b.t-a.t)}
-const save=()=>{try{localStorage.setItem('greenhive',JSON.stringify({last:S.last,log:S.log.slice(0,60),tank:S.tank,thr:S.thr}))}catch(e){}};
-const col=t=>`hsl(${Math.round(190-Math.min(1,Math.max(0,(t-28)/12))*185)},85%,48%)`;
+const save=()=>{try{localStorage.setItem('greenhive',JSON.stringify({last:S.last,log:S.log.slice(0,40),tank:S.tank,thr:S.thr}))}catch(e){}};
+const col=t=>`hsl(${Math.round(210-Math.min(1,Math.max(0,(t-24)/18))*210)},85%,48%)`;
 const diur=h=>26+8*Math.max(0,Math.sin(Math.PI*(h-6)/12));
 const temp=z=>diur(S.hour)+S.heat+z.b+z.noise-z.cool;
 const hum=z=>Math.round(Math.min(98,Math.max(30,85-(temp(z)-24)*2.2+(z.id=='forest'?8:0)+(S.rain?12:0))));
@@ -142,55 +126,35 @@ const ago=t=>{const s=Math.floor((Date.now()-t)/1000);return s<60?s+'s ago':s<36
 const hm=h=>String(Math.floor(h)).padStart(2,'0')+':'+String(Math.round(h%1*60)).padStart(2,'0');
 const toast=m=>{const e=$('#toast');e.textContent=m;e.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.opacity=0,1800)};
 const zn=id=>Z.find(x=>x.id==id),active=z=>z.until>Date.now();
-const cnt=z=>S.log.filter(e=>e.id==z.id&&Date.now()-e.t<864e5).length;
-// map
-const C0=[14.6989528,121.0816278],MU=0.33,KL=Math.cos(C0[0]*Math.PI/180);
-let G={M:[MU,0,0,-MU],T:[0,0],z:{}};try{const o=JSON.parse(localStorage.getItem('gh_g2')||'null');if(o&&o.M)G=o}catch(e){}
-Z.forEach(z=>{const o=G.z[z.id]||[0,0];z.ol=o[0];z.on=o[1]});
-const proj=(x,y)=>{const dx=x-165,dy=y-255,e=G.M[0]*dx+G.M[1]*dy+G.T[0],n=G.M[2]*dx+G.M[3]*dy+G.T[1];return[C0[0]+n/111320,C0[1]+e/(111320*KL)]};
-const pz=(z,x,y)=>{const p=proj(x,y);return[p[0]+z.ol,p[1]+z.on]};
+const el=(n,a,p)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);(p||$('#map')).appendChild(e);return e};
+const C0=[14.6989528,121.0816278],MU=0.28,KL=Math.cos(C0[0]*Math.PI/180);
+let OFF={la:0,ln:0};try{OFF=JSON.parse(localStorage.getItem('gh_off'))||OFF}catch(e){}
+const proj=(x,y)=>[C0[0]-(y-255)*MU/111320+OFF.la,C0[1]+(x-165)*MU/(111320*KL)+OFF.ln];
 const R=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const PTS={forest:[[150,170],[140,120],[155,80],[200,64],[245,80],[260,120],[250,170]],main:R(95,215,80,130),court:R(180,215,105,130),g1112:R(30,215,55,200),park:R(95,385,190,95),front:R(60,14,240,40)};
-const BND=R(18,6,290,490);
-const map=L.map('map',{zoomControl:false,attributionControl:false,maxZoom:19,zoomSnap:.25}).setView(C0,18);
-const base={st:L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})};
-function setBase(){Object.values(base).forEach(l=>map.removeLayer(l));if(S.mode!='heat')base[S.mode].addTo(map);map.getPane('tilePane').classList.toggle('dk',S.mode=='st');
-$('#attr').textContent=S.mode=='sat'?'Imagery © Esri, Maxar, Earthstar':S.mode=='st'?'© OpenStreetMap contributors':'';
-document.querySelectorAll('#tg button').forEach(b=>b.classList.toggle('on',b.dataset.m==S.mode))}
-const bnd=L.polygon(BND.map(p=>proj(...p)),{color:'#f59e0b',weight:3,dashArray:'12 9',fill:false,interactive:false}).addTo(map);
+const map=L.map('map',{zoomControl:false,maxZoom:19}).setView(C0,18);
+L.control.zoom({position:'topright'}).addTo(map);L.control.scale({imperial:true,position:'bottomleft'}).addTo(map);
+const base={st:L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'})};
+function setBase(){Object.values(base).forEach(l=>map.removeLayer(l));base[S.sat?'sat':'st'].addTo(map);map.getPane('tilePane').classList.toggle('dk',!S.sat)}
+setBase();
 Z.forEach(z=>{z.R=z.type=='lot'||z.id=='front'?38:30;
-z.heat=L.circle(pz(z,z.cx,z.cy-5),{radius:z.R,stroke:false,fillOpacity:.45,className:'heat',interactive:false}).addTo(map);
-z.poly=L.polygon(PTS[z.id].map(p=>pz(z,...p)),{color:'#fbbf24',weight:1.5,fillColor:'#fff',fillOpacity:.06}).addTo(map);
-z.mk=L.marker(pz(z,z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="mk"><div class="ring"><div class="in"></div></div><div class="bd"></div><div class="bub"></div><div class="lt"></div></div>'}),zIndexOffset:100,draggable:true}).addTo(map);
-const pick=()=>{if(S.cal)return;S.sel=z.id;S.card=true;draw()};z.poly.on('click',pick);z.mk.on('click',pick);
-const mv=()=>{const ll=z.mk.getLatLng(),b=proj(z.cx,z.cy);z.ol=ll.lat-b[0];z.on=ll.lng-b[1];G.z[z.id]=[z.ol,z.on];z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5))};
-z.mk.on('drag',mv);z.mk.on('dragend',()=>{mv();place()})});
-function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5));z.mk.setLatLng(pz(z,z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_g2',JSON.stringify(G))}catch(e){}}
-const fit=()=>map.fitBounds(bnd.getBounds(),{padding:[16,16]});
-setBase();fit();
-const CAL=['Step 1 of 3: tap the school’s TOP-LEFT corner (Ocampo Ave side, Ecol St side)','Step 2 of 3: tap the TOP-RIGHT corner (other end of the Ocampo Ave side)','Step 3 of 3: tap the BOTTOM-LEFT corner (other end of the Ecol St side)'];
-let CA=[];
-function calUI(){$('#banner').style.display=S.cal?'block':'none';if(S.cal)$('#banner').textContent=CAL[S.cal-1];$('#map').classList.toggle('cal',!!S.cal);$('#cal').classList.toggle('on',!!S.cal)}
-function calSolve(P){
-const toE=l=>[(l.lng-C0[1])*111320*KL,(l.lat-C0[0])*111320],a=toE(P[0]),b=toE(P[1]),c=toE(P[2]);
-const x0=BND[0][0],y0=BND[0][1],W=BND[1][0]-x0,H=BND[3][1]-y0;
-const Mx=[(b[0]-a[0])/W,(b[1]-a[1])/W],My=[(c[0]-a[0])/H,(c[1]-a[1])/H];
-G.M=[Mx[0],My[0],Mx[1],My[1]];G.T=[a[0]+Mx[0]*(165-x0)+My[0]*(255-y0),a[1]+Mx[1]*(165-x0)+My[1]*(255-y0)];
-G.z={};Z.forEach(z=>{z.ol=0;z.on=0});place()}
-map.on('click',e=>{if(!S.cal)return;CA.push(e.latlng);if(S.cal<3){S.cal++;calUI()}else{S.cal=0;calUI();calSolve(CA);CA=[];fit();toast('Campus aligned to your 3 corners')}});
-function setEdit(){$('#lay').classList.toggle('on',!!S.edit);Z.forEach(z=>z.mk.dragging[S.edit?'enable':'disable']());$('#map').classList.toggle('editing',!!S.edit);$('#edit').classList.toggle('on',!!S.edit);if(S.edit)toast('Drag each circle onto its real building')}
-setEdit();
+z.heat=L.circle(proj(z.cx,z.cy-18),{radius:z.R,stroke:false,fillOpacity:.5,className:'heat',interactive:false}).addTo(map);
+z.poly=L.polygon(PTS[z.id].map(p=>proj(p[0],p[1])),{color:'#050b18',weight:1,fillColor:z.type=='park'?'#10b981':'#3b82f6',fillOpacity:.25}).addTo(map);
+z.mk=L.marker(proj(z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="pin"><div class="b"></div><div class="n">${z.s}</div><div class="l"></div></div>`})}).addTo(map);
+const pick=()=>{S.sel=z.id;draw()};z.poly.on('click',pick);z.mk.on('click',pick)});
+function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>proj(p[0],p[1])));z.heat.setLatLng(proj(z.cx,z.cy-18));z.mk.setLatLng(proj(z.cx,z.cy))});try{localStorage.setItem('gh_off',JSON.stringify(OFF))}catch(e){}}
+let lastSel=null;
 function go(id,sec,mode){const z=zn(id),l=Math.round(sec*z.lps);
 if(S.tank<l){toast('Tank too low – refill first');return false}
 S.tank-=l;z.until=Math.max(z.until,Date.now())+sec*1000;S.last[id]=Date.now();
 S.log.unshift({id,t:Date.now(),mode,temp:+temp(z).toFixed(1),l});save();
 toast((mode=='auto'?'🤖 Auto-mist · ':'💧 Misting · ')+z.s);draw();return true}
 window.go=go;window.S=S;window.Z=Z;window.zn=zn;
-const fm=z=>S.f=='all'||(S.f=='hot'&&z.t>=S.thr)||(S.f=='warm'&&z.t>=33&&z.t<S.thr)||(S.f=='cool'&&z.t<33)||(S.f=='mist'&&active(z));
+const show=z=>S.f=='all'||(S.f=='hot'&&z.t>=S.thr)||(S.f=='mist'&&active(z));
 const hit=z=>!S.q||(z.n+' '+z.k).toLowerCase().includes(S.q);
 function stepUI(){
 const T=['Choose a zone','Choose how much','Review and confirm'];
-$('#stepL').textContent='Mist · step '+S.step+' of 3';$('#stepT').textContent=T[S.step-1];
+$('#stepL').textContent='Trigger · step '+S.step+' of 3';$('#stepT').textContent=T[S.step-1];
 $('#back').style.visibility=S.step>1?'visible':'hidden';$('#next').textContent=S.step==3?'Start misting':'Next';
 let h='';
 if(S.step==1)h=Z.map(z=>`<div class="opt ${z.id==S.tz?'on':''}" onclick="S.tz='${z.id}';stepUI()"><div><b>${z.n}</b><div class="sub">${S.last[z.id]?'Last: '+ago(S.last[z.id]):'Never triggered'}</div></div><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°</span></div>`).join('');
@@ -198,24 +162,24 @@ if(S.step==2)h=[[10,'Mist','light cool-down'],[30,'Soak','watering'],[60,'Deep s
 if(S.step==3){const z=zn(S.tz);h=`<div class="opt"><div><b>${z.n}</b><div class="sub">${S.tm}s · about ${Math.round(S.tm*z.lps)} L · now ${z.t.toFixed(1)}°C</div></div></div>`}
 $('#stepB').innerHTML=h}
 function draw(){
-Z.forEach(z=>z.t=temp(z));
-Z.forEach(z=>{const on=fm(z)&&hit(z),e=z.mk.getElement(),pe=z.poly.getElement(),h=S.mode=='heat';
-z.heat.setStyle({fillColor:col(z.t),fillOpacity:h?.7:.4});
-z.poly.setStyle({color:z.id==S.sel?'#fff':'#fbbf24',weight:z.id==S.sel?3:1.5,fillColor:col(z.t),fillOpacity:h?.55:.06});
+const ts=Z.map(temp);Z.forEach((z,i)=>z.t=ts[i]);
+Z.forEach(z=>{const on=show(z)&&hit(z),e=z.mk.getElement(),pe=z.poly.getElement();
+z.heat.setStyle({fillColor:col(z.t),fillOpacity:S.layer?.5:0});
+z.poly.setStyle({color:z.id==S.sel?'#34d399':'#050b18',weight:z.id==S.sel?3:1});
 if(pe)pe.classList.toggle('misting',active(z));
-if(e){e.style.opacity=on?1:.3;e.querySelector('.in').style.background=col(z.t);e.querySelector('.in').textContent=Math.round(z.t)+'°';
-const c=cnt(z),bd=e.querySelector('.bd');bd.textContent=c;bd.style.display=c?'':'none';
-e.querySelector('.lt').textContent=active(z)?'💦 '+Math.ceil((z.until-Date.now())/1000)+'s left':S.last[z.id]?'💧 '+ago(S.last[z.id]):'no trigger yet';
-const b=e.querySelector('.bub');b.style.display=S.card&&S.sel==z.id?'block':'none';b.textContent=z.s}});
+if(e){e.style.opacity=on?1:.3;const bb=e.querySelector('.b');bb.style.background=col(z.t);bb.textContent=Math.round(z.t)+'°';
+e.querySelector('.l').textContent=active(z)?'💦 '+Math.ceil((z.until-Date.now())/1000)+'s left':S.last[z.id]?'💧 '+ago(S.last[z.id]):'no trigger yet'}});
+if(S.sel!=lastSel){lastSel=S.sel;map.panTo(zn(S.sel).mk.getLatLng())}
+$('#heatT').classList.toggle('on',S.layer);
 const z=zn(S.sel),pk=34+S.heat+z.b;
-$('#card').classList.toggle('on',S.card);$('#vMap').classList.toggle('lift',S.card);
-if(S.card)$('#card').innerHTML=`<div class="title"><b>${z.n}</b><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°C</span><button class="btn" style="padding:4px 10px" onclick="S.card=false;draw()">✕</button></div>
-<div class="sub" style="margin-top:4px">${active(z)?'<b style="color:var(--gr)">Misting now</b>':S.last[z.id]?'Last triggered <b>'+ago(S.last[z.id])+'</b>':'Never triggered'} · Humidity ${hum(z)}% · Peak ≈ ${pk.toFixed(1)}°</div>
-<div class="sub">${z.t>=S.thr?'<b style="color:#fb7185">Above auto-trigger ('+S.thr+'°)</b>':'Below auto-trigger ('+S.thr+'°)'}${z.kids?' · kid-traffic zone':''}</div>
+$('#sel').innerHTML=`<div class="title"><b>${z.n}</b><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°C</span></div>
+<div class="sub" style="margin-top:4px">${active(z)?'<b style="color:var(--ac)">Misting now</b>':S.last[z.id]?'Last triggered <b>'+ago(S.last[z.id])+'</b>':'Never triggered'} · Humidity ${hum(z)}% · Peak ≈ ${pk.toFixed(1)}°</div>
+<div class="sub">${z.t>=S.thr?'<b style="color:var(--hot)">Above auto-trigger ('+S.thr+'°)</b>':'Below auto-trigger ('+S.thr+'°)'}${z.kids?' · kid-traffic zone':''}</div>
 <div class="acts"><button class="btn p" onclick="go('${z.id}',10,'manual')">💨 Mist 10s</button><button class="btn" onclick="go('${z.id}',30,'manual')">🌿 Soak 30s</button><button class="btn" onclick="zn('${z.id}').until=0">⏹ Stop</button></div>`;
-$('#list').innerHTML=Z.filter(z=>fm(z)&&hit(z)).sort((a,b)=>b.t-a.t).map(z=>`<div class="row" onclick="S.sel='${z.id}';S.card=true;show('vMap');draw();map.panTo(zn('${z.id}').mk.getLatLng())"><div><b>${z.n}</b><div class="sub">${active(z)?'💦 misting now':S.last[z.id]?'Last: '+ago(S.last[z.id]):'Never triggered'} · ${cnt(z)} today</div></div><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°</span></div>`).join('')||'<div class="sub">No zones match.</div>';
+$('#list').innerHTML=Z.filter(z=>show(z)&&hit(z)).sort((a,b)=>b.t-a.t).map(z=>`<div class="row" onclick="S.sel='${z.id}';draw();scrollTo({top:0,behavior:'smooth'})"><div><b>${z.n}</b><div class="sub">${active(z)?'💦 misting now':S.last[z.id]?'Last: '+ago(S.last[z.id]):'Never triggered'}</div></div><span class="t" style="background:${col(z.t)}">${z.t.toFixed(1)}°</span></div>`).join('')||'<div class="sub">No zones match.</div>';
 $('#tankV').textContent=Math.round(S.tank/10)+'% · '+Math.round(S.tank)+' L';$('#tankB').style.width=S.tank/10+'%';
-$('#log').innerHTML=S.log.slice(0,10).map(e=>`<div class="row" style="cursor:default"><div><b>${zn(e.id).s}</b><div class="sub">${e.mode=='auto'?'🤖 Auto':'👆 Manual'} · ${e.temp}°C · ${e.l} L</div></div><span class="sub">${ago(e.t)}</span></div>`).join('')||'<div class="sub">No triggers yet</div>'}
+$('#log').innerHTML=S.log.slice(0,10).map(e=>`<div class="row" style="cursor:default"><div><b>${zn(e.id).s}</b><div class="sub">${e.mode=='auto'?'🤖 Auto':'👆 Manual'} · ${e.temp}°C · ${e.l} L</div></div><span class="sub">${ago(e.t)}</span></div>`).join('')||'<div class="sub">No triggers yet</div>';
+if(!document.activeElement||document.activeElement.id!='next')stepUI()}
 function tick(){
 Z.forEach(z=>{z.noise=Math.max(-1.2,Math.min(1.2,z.noise+(Math.random()-.5)*.3));
 z.cool=active(z)?Math.min(4,z.cool+.4):z.cool*.97;
@@ -223,44 +187,23 @@ if(S.auto&&!S.rain&&!active(z)&&temp(z)>=S.thr&&Date.now()-(S.last[z.id]||0)>250
 draw()}
 setInterval(tick,1000);
 setInterval(()=>Z.forEach(z=>{if(!active(z))return;const bd=z.poly.getBounds();for(let i=0;i<3;i++){const p=[bd.getSouth()+Math.random()*(bd.getNorth()-bd.getSouth()),bd.getWest()+Math.random()*(bd.getEast()-bd.getWest())];const d=L.marker(p,{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="dr">💧</div>'}),interactive:false}).addTo(map);setTimeout(()=>d.remove(),1000)}}),350);
-// data sources
-const DATA=[
-['Temperature (°C)','Simulated per zone: 26° base plus up to 8° on a midday curve, plus a zone offset (parking +4, G11–12 +2.5, court +2, main and frontage +1.5, forest −3.5), plus heatwave, small random drift, minus misting cool-down (up to 4°).','One SHT31 or DHT22 sensor per zone on an ESP32, sent by MQTT or REST.'],
-['Humidity (%)','Calculated from temperature: 85 − 2.2 × (temp − 24), forest +8, rain mode +12.','The same SHT31 or DHT22 sensor.'],
-['Forecast peak','34° plus the zone offset and heatwave.','A weather forecast API such as Open-Meteo or PAGASA.'],
-['Time of day','Your device clock at start. The Desk slider overrides it for testing.','Server or device clock.'],
-['Auto-trigger','Starts a 8 s mist when a zone is at or above your trigger temperature, not already misting, 25 s since its last trigger, rain mode off, and not a kid-traffic zone during 7:00–16:00 if the guard is on.','Same rule, run on a server that talks to the valves.'],
-['Last triggered, log and badge','Written by this page each time a zone is triggered, saved in this browser only. The first four log entries are samples. The badge counts triggers in the last 24 h.','The valve controller writes each event to a shared database.'],
-['Water tank','Starts at 1000 L. Each trigger removes seconds × the zone’s L/s rate (forest 1.2, parking 2.5, and so on).','A tank level sensor and a flow meter.'],
-['Map imagery','Live tiles from Esri World Imagery (satellite) or OpenStreetMap (street). They need internet.','Same.'],
-['Campus location and zone shapes','The centre point 14.69895, 121.08163 comes from Wikipedia. Zone shapes were drawn from your Google Maps screenshot, so use Desk → Align to fit them to the real buildings.','Trace zones on the real building outlines.']];
-$('#data').innerHTML=DATA.map(d=>`<div class="row" style="cursor:default;display:block"><b>${d[0]}</b><div class="sub"><u>Now:</u> ${d[1]}</div><div class="sub"><u>Real:</u> ${d[2]}</div></div>`).join('');
-// nav + controls
-function show(v){document.querySelectorAll('.v').forEach(x=>x.classList.toggle('on',x.id==v));document.querySelectorAll('nav button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v==v));if(v=='vMap')setTimeout(()=>map.invalidateSize(),60)}
-document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>show(b.dataset.v));
-$('#fab').onclick=()=>{S.tz=S.sel;S.step=1;stepUI();show('vMist')};
-document.querySelectorAll('#tg button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;setBase();draw()});
-document.querySelectorAll('#flr button').forEach(b=>b.onclick=()=>{S.f=b.dataset.f;document.querySelectorAll('#flr button').forEach(x=>x.classList.toggle('on',x==b));draw()});
-$('#cal').onclick=()=>{S.cal=S.cal?0:1;CA=[];if(S.cal){S.edit=false;setEdit();S.card=false}calUI();draw()};
-$('#edit').onclick=()=>{S.cal=0;calUI();S.edit=!S.edit;S.card=false;setEdit();draw()};
-$('#zi').onclick=()=>map.zoomIn();$('#zo').onclick=()=>map.zoomOut();$('#home').onclick=fit;
-$('#loc').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.latitude,p.coords.longitude];L.circleMarker(ll,{radius:8,color:'#fff',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);map.setView(ll,18)},()=>toast('Location unavailable')):toast('Location unavailable');
-$('#q').oninput=e=>{S.q=e.target.value.trim().toLowerCase();const f=Z.find(z=>hit(z));if(S.q&&f){S.sel=f.id;S.card=true;map.panTo(f.mk.getLatLng())}draw()};
-$('#next').onclick=()=>{if(S.step<3){S.step++;stepUI()}else if(go(S.tz,S.tm,'manual')){S.sel=S.tz;S.step=1;show('vMap')}};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x==b));document.querySelectorAll('.v').forEach(v=>v.classList.toggle('on',v.id==b.dataset.v));if(b.dataset.v=='vTrig'){S.tz=S.sel;S.step=1;stepUI()}scrollTo(0,0);setTimeout(()=>map.invalidateSize(),60)});
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{S.f=b.dataset.f;document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x==b));draw()});
+$('#q').oninput=e=>{S.q=e.target.value.trim().toLowerCase();const f=Z.find(z=>hit(z));if(S.q&&f)S.sel=f.id;draw()};
+$('#baseT').onclick=()=>{S.sat=!S.sat;setBase();$('#baseT').classList.toggle('on',S.sat)};
+const nudge=(dy,dx)=>{OFF.la+=dy*5/111320;OFF.ln+=dx*5/(111320*KL);place()};
+$('#nU').onclick=()=>nudge(1,0);$('#nD').onclick=()=>nudge(-1,0);$('#nL').onclick=()=>nudge(0,-1);$('#nR').onclick=()=>nudge(0,1);
+$('#nZ').onclick=()=>{OFF={la:0,ln:0};place();toast('Alignment reset')};
+$('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);OFF.la+=c.lat-p[0];OFF.ln+=c.lng-p[1];place();toast('Zones centered on map view')};
+$('#heatT').onclick=()=>{S.layer=!S.layer;draw()};
+$('#next').onclick=()=>{if(S.step<3){S.step++;stepUI()}else if(go(S.tz,S.tm,'manual')){S.sel=S.tz;S.step=1;document.querySelector('nav button[data-v=vMap]').click()}};
 $('#back').onclick=()=>{S.step--;stepUI()};
+$('#gBtn').onclick=()=>$('#guide').classList.add('on');$('#gClose').onclick=()=>$('#guide').classList.remove('on');
 $('#auto').onchange=e=>S.auto=e.target.checked;$('#guard').onchange=e=>S.guard=e.target.checked;$('#rain').onchange=e=>S.rain=e.target.checked;
 $('#thr').value=S.thr;$('#thrV').textContent=S.thr;$('#thr').oninput=e=>{S.thr=+e.target.value;$('#thrV').textContent=S.thr;save();draw()};
 $('#hour').value=S.hour;$('#hrV').textContent=hm(S.hour);$('#hour').oninput=e=>{S.hour=+e.target.value;$('#hrV').textContent=hm(S.hour);draw()};
 $('#wave').onclick=()=>{S.heat=S.heat?0:4;$('#wave').textContent=S.heat?'☀️ End heatwave':'🔥 Heatwave +4°';draw()};
 $('#refill').onclick=()=>{S.tank=1000;save();draw();toast('Tank refilled')};
 $('#clr').onclick=()=>{S.log=[];S.last={};save();draw()};
-const LB=[['rl','↺'],['rr','↻'],['sm','−'],['sp','+'],['mu','↑'],['md','↓'],['ml','←'],['mr','→']];
-$('#lay').innerHTML=$('#layD').innerHTML=LB.map(b=>`<button data-o="${b[0]}">${b[1]}</button>`).join('');
-const rot=d=>{const a=d*Math.PI/180,c=Math.cos(a),n=Math.sin(a),[p,q,r,t]=G.M;G.M=[c*p-n*r,c*q-n*t,n*p+c*r,n*q+c*t]};
-const mvT=(e,n)=>{G.T[0]+=e;G.T[1]+=n};
-const OPS={rl:()=>rot(3),rr:()=>rot(-3),sm:()=>G.M=G.M.map(v=>v*.95),sp:()=>G.M=G.M.map(v=>v*1.05),mu:()=>mvT(0,4),md:()=>mvT(0,-4),ml:()=>mvT(-4,0),mr:()=>mvT(4,0)};
-document.addEventListener('click',e=>{const b=e.target.closest('[data-o]');if(b){OPS[b.dataset.o]();place()}});
-$('#nZ').onclick=()=>{G={M:[MU,0,0,-MU],T:[0,0],z:{}};Z.forEach(z=>{z.ol=0;z.on=0});place();fit();toast('Layout reset')};
-$('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);G.T[0]+=(c.lng-p[1])*111320*KL;G.T[1]+=(c.lat-p[0])*111320;place();toast('Zones centered on map view')};
-stepUI();draw();
+draw();
 </script></body></html>
