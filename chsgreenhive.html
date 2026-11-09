@@ -24,6 +24,7 @@ header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:lin
 .tg{top:12px;left:12px;display:flex;padding:4px;gap:2px}
 .tg button{width:48px;height:42px;border:0;border-radius:12px;background:none;font-size:20px;cursor:pointer}
 .tg button.on{background:var(--navy)}
+.tg button#edit.on{background:var(--or)}
 .flr{top:12px;right:12px;width:58px;padding:8px 4px;text-align:center}
 .flr small{display:block;font-size:10px;letter-spacing:.2em;color:#51618a;font-weight:700;margin-bottom:4px}
 .flr button{display:block;width:100%;height:40px;border:0;background:none;font:700 16px inherit;font-family:inherit;color:#51618a;border-radius:12px;cursor:pointer}
@@ -34,12 +35,13 @@ header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:lin
 .lg i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px}
 .lift .stk,.lift .lg{bottom:204px}
 #attr{position:absolute;right:6px;bottom:3px;font-size:10px;color:#fff;text-shadow:0 0 3px #000;z-index:400}
+.editing .ring{box-shadow:0 0 0 4px #fff,0 3px 10px #0009;cursor:grab}
 .mk{position:absolute;left:0;top:0;width:0;height:0}
-.ring{position:absolute;left:-30px;top:-30px;width:60px;height:60px;border-radius:50%;padding:4px;background:linear-gradient(135deg,#fb923c,#a855f7);box-shadow:0 3px 10px #0009;cursor:pointer}
-.in{width:100%;height:100%;border-radius:50%;display:grid;place-items:center;font:800 17px system-ui;color:#fff;border:2px solid #fff3}
-.bd{position:absolute;left:12px;top:-34px;min-width:26px;height:26px;padding:0 6px;border-radius:13px;background:var(--navy);color:#fff;border:2px solid #fff;font:700 13px system-ui;display:grid;place-items:center}
-.bub{position:absolute;left:34px;top:-18px;background:#fff;color:var(--navy);font:700 14px system-ui;padding:7px 11px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 10px #0007;display:none}
-.lt{position:absolute;left:-60px;top:32px;width:120px;text-align:center;font:700 10px system-ui;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
+.ring{position:absolute;left:-24px;top:-24px;width:48px;height:48px;border-radius:50%;padding:4px;background:linear-gradient(135deg,#fb923c,#a855f7);box-shadow:0 3px 10px #0009;cursor:pointer}
+.in{width:100%;height:100%;border-radius:50%;display:grid;place-items:center;font:800 14px system-ui;color:#fff;border:2px solid #fff3}
+.bd{position:absolute;left:8px;top:-30px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--navy);color:#fff;border:2px solid #fff;font:700 12px system-ui;display:grid;place-items:center}
+.bub{position:absolute;left:28px;top:-16px;background:#fff;color:var(--navy);font:700 14px system-ui;padding:7px 11px;border-radius:12px;white-space:nowrap;box-shadow:0 3px 10px #0007;display:none}
+.lt{position:absolute;left:-60px;top:26px;width:120px;text-align:center;font:700 10px system-ui;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
 .misting{stroke:#38bdf8!important;stroke-dasharray:5 6;animation:dash .8s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-11}}
 .heat{filter:blur(12px)}
@@ -78,7 +80,7 @@ pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radiu
 <label class="sr"><span>🔍</span><input id="q" placeholder="Search zones…" aria-label="Search zones"></label></header>
 <div id="app">
 <section class="v on" id="vMap"><div id="map"></div>
-<div class="wbox tg" id="tg"><button data-m="sat" class="on" aria-label="Satellite">🌐</button><button data-m="st" aria-label="Street map">🗺</button><button data-m="heat" aria-label="Heat only">▦</button></div>
+<div class="wbox tg" id="tg"><button data-m="sat" class="on" aria-label="Satellite">🌐</button><button data-m="st" aria-label="Street map">🗺</button><button data-m="heat" aria-label="Heat only">▦</button><button id="edit" aria-label="Edit layout">✋</button></div>
 <div class="wbox flr" id="flr"><small>HEAT</small><button data-f="all" class="on">All</button><button data-f="hot">Hot</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mist">💦</button></div>
 <div class="wbox lg"><span><i style="background:hsl(190,85%,48%)"></i>Cool</span><span><i style="background:hsl(65,85%,48%)"></i>Warm</span><span><i style="background:hsl(5,85%,48%)"></i>Hot</span></div>
 <div class="wbox stk"><button id="zi">＋</button><button id="zo">－</button><button id="home" aria-label="Fit campus">⌂</button><button id="loc" aria-label="My location">◎</button></div>
@@ -98,8 +100,8 @@ pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radiu
 <div class="ctl"><label for="guard">Class-hours guard (7:00–16:00, skips kid-traffic zones)</label><input type="checkbox" id="guard" checked></div>
 <div class="ctl"><label for="rain">Rain mode (skip auto)</label><input type="checkbox" id="rain"></div>
 <div class="acts"><button class="btn" id="wave">🔥 Heatwave +4°</button><button class="btn" id="clr">Clear log</button></div></div>
-<div class="card"><h2>Align zones to the real map</h2><div class="sub">Pan the map so the campus is centered, then tap Center. Arrows nudge 5 m.</div>
-<div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nU">↑</button><button class="btn" id="nD">↓</button><button class="btn" id="nL">←</button><button class="btn" id="nR">→</button><button class="btn" id="nZ">Reset</button></div></div>
+<div class="card"><h2>Align zones to the real map</h2><div class="sub">Fastest: tap ✋ on the map, then drag each circle onto its real building. Or use Size, Rotate, Center and the arrows to move everything at once.</div>
+<div class="ctl"><span>Size ×<b id="sV"></b></span><input type="range" id="sS" min="0.4" max="3" step="0.05"></div><div class="ctl"><span>Rotate <b id="rV"></b>°</span><input type="range" id="rS" min="-90" max="90" step="1"></div><div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nU">↑</button><button class="btn" id="nD">↓</button><button class="btn" id="nL">←</button><button class="btn" id="nR">→</button><button class="btn" id="nZ">Reset</button></div></div>
 <div class="card"><h2>Trigger log</h2><div id="log"></div></div></section>
 
 <section class="v pn" id="vHelp">
@@ -137,9 +139,11 @@ const toast=m=>{const e=$('#toast');e.textContent=m;e.style.opacity=1;clearTimeo
 const zn=id=>Z.find(x=>x.id==id),active=z=>z.until>Date.now();
 const cnt=z=>S.log.filter(e=>e.id==z.id&&Date.now()-e.t<864e5).length;
 // map
-const C0=[14.6989528,121.0816278],MU=0.28,KL=Math.cos(C0[0]*Math.PI/180);
-let OFF={la:0,ln:0};try{OFF=JSON.parse(localStorage.getItem('gh_off'))||OFF}catch(e){}
-const proj=(x,y)=>[C0[0]-(y-255)*MU/111320+OFF.la,C0[1]+(x-165)*MU/(111320*KL)+OFF.ln];
+const C0=[14.6989528,121.0816278],MU=0.5,KL=Math.cos(C0[0]*Math.PI/180);
+let G={la:0,ln:0,s:1,r:0,z:{}};try{G=Object.assign(G,JSON.parse(localStorage.getItem('gh_off')||'{}'))}catch(e){}
+const OFF=G;Z.forEach(z=>{const o=G.z[z.id]||[0,0];z.ol=o[0];z.on=o[1]});
+const proj=(x,y)=>{const dx=(x-165)*G.s,dy=(y-255)*G.s,a=G.r*Math.PI/180,c=Math.cos(a),n=Math.sin(a),X=dx*c-dy*n,Y=dx*n+dy*c;return[C0[0]-Y*MU/111320+G.la,C0[1]+X*MU/(111320*KL)+G.ln]};
+const pz=(z,x,y)=>{const p=proj(x,y);return[p[0]+z.ol,p[1]+z.on]};
 const R=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const PTS={forest:[[150,170],[140,120],[155,80],[200,64],[245,80],[260,120],[250,170]],main:R(95,215,80,130),court:R(180,215,105,130),g1112:R(30,215,55,200),park:R(95,385,190,95),front:R(60,14,240,40)};
 const BND=R(18,6,290,490);
@@ -150,13 +154,17 @@ $('#attr').textContent=S.mode=='sat'?'Imagery © Esri, Maxar, Earthstar':S.mode=
 document.querySelectorAll('#tg button').forEach(b=>b.classList.toggle('on',b.dataset.m==S.mode))}
 const bnd=L.polygon(BND.map(p=>proj(...p)),{color:'#f59e0b',weight:3,dashArray:'12 9',fill:false,interactive:false}).addTo(map);
 Z.forEach(z=>{z.R=z.type=='lot'||z.id=='front'?38:30;
-z.heat=L.circle(proj(z.cx,z.cy-5),{radius:z.R,stroke:false,fillOpacity:.45,className:'heat',interactive:false}).addTo(map);
-z.poly=L.polygon(PTS[z.id].map(p=>proj(...p)),{color:'#fbbf24',weight:1.5,fillColor:'#fff',fillOpacity:.06}).addTo(map);
-z.mk=L.marker(proj(z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="mk"><div class="ring"><div class="in"></div></div><div class="bd"></div><div class="bub"></div><div class="lt"></div></div>'}),zIndexOffset:100}).addTo(map);
-const pick=()=>{S.sel=z.id;S.card=true;draw()};z.poly.on('click',pick);z.mk.on('click',pick)});
-function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>proj(...p)));z.heat.setLatLng(proj(z.cx,z.cy-5));z.mk.setLatLng(proj(z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_off',JSON.stringify(OFF))}catch(e){}}
+z.heat=L.circle(pz(z,z.cx,z.cy-5),{radius:z.R,stroke:false,fillOpacity:.45,className:'heat',interactive:false}).addTo(map);
+z.poly=L.polygon(PTS[z.id].map(p=>pz(z,...p)),{color:'#fbbf24',weight:1.5,fillColor:'#fff',fillOpacity:.06}).addTo(map);
+z.mk=L.marker(pz(z,z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="mk"><div class="ring"><div class="in"></div></div><div class="bd"></div><div class="bub"></div><div class="lt"></div></div>'}),zIndexOffset:100,draggable:true}).addTo(map);
+const pick=()=>{S.sel=z.id;S.card=true;draw()};z.poly.on('click',pick);z.mk.on('click',pick);
+const mv=()=>{const ll=z.mk.getLatLng(),b=proj(z.cx,z.cy);z.ol=ll.lat-b[0];z.on=ll.lng-b[1];G.z[z.id]=[z.ol,z.on];z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5))};
+z.mk.on('drag',mv);z.mk.on('dragend',()=>{mv();place()})});
+function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5));z.mk.setLatLng(pz(z,z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_off',JSON.stringify(OFF))}catch(e){}}
 const fit=()=>map.fitBounds(bnd.getBounds(),{padding:[16,16]});
 setBase();fit();
+function setEdit(){Z.forEach(z=>z.mk.dragging[S.edit?'enable':'disable']());$('#map').classList.toggle('editing',!!S.edit);$('#edit').classList.toggle('on',!!S.edit);if(S.edit)toast('Drag each circle onto its real building')}
+setEdit();
 function go(id,sec,mode){const z=zn(id),l=Math.round(sec*z.lps);
 if(S.tank<l){toast('Tank too low – refill first');return false}
 S.tank-=l;z.until=Math.max(z.until,Date.now())+sec*1000;S.last[id]=Date.now();
@@ -218,6 +226,7 @@ document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>show(b.
 $('#fab').onclick=()=>{S.tz=S.sel;S.step=1;stepUI();show('vMist')};
 document.querySelectorAll('#tg button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;setBase();draw()});
 document.querySelectorAll('#flr button').forEach(b=>b.onclick=()=>{S.f=b.dataset.f;document.querySelectorAll('#flr button').forEach(x=>x.classList.toggle('on',x==b));draw()});
+$('#edit').onclick=()=>{S.edit=!S.edit;S.card=false;setEdit();draw()};
 $('#zi').onclick=()=>map.zoomIn();$('#zo').onclick=()=>map.zoomOut();$('#home').onclick=fit;
 $('#loc').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.latitude,p.coords.longitude];L.circleMarker(ll,{radius:8,color:'#fff',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);map.setView(ll,18)},()=>toast('Location unavailable')):toast('Location unavailable');
 $('#q').oninput=e=>{S.q=e.target.value.trim().toLowerCase();const f=Z.find(z=>hit(z));if(S.q&&f){S.sel=f.id;S.card=true;map.panTo(f.mk.getLatLng())}draw()};
@@ -231,7 +240,9 @@ $('#refill').onclick=()=>{S.tank=1000;save();draw();toast('Tank refilled')};
 $('#clr').onclick=()=>{S.log=[];S.last={};save();draw()};
 const nudge=(dy,dx)=>{OFF.la+=dy*5/111320;OFF.ln+=dx*5/(111320*KL);place()};
 $('#nU').onclick=()=>nudge(1,0);$('#nD').onclick=()=>nudge(-1,0);$('#nL').onclick=()=>nudge(0,-1);$('#nR').onclick=()=>nudge(0,1);
-$('#nZ').onclick=()=>{OFF={la:0,ln:0};place();toast('Alignment reset')};
+$('#nZ').onclick=()=>{Object.assign(G,{la:0,ln:0,s:1,r:0,z:{}});Z.forEach(z=>{z.ol=0;z.on=0});$('#sS').value=1;$('#rS').value=0;$('#sV').textContent=1;$('#rV').textContent=0;place();fit();toast('Layout reset')};
+$('#sS').value=G.s;$('#sV').textContent=G.s;$('#sS').oninput=e=>{G.s=+e.target.value;$('#sV').textContent=G.s;place()};
+$('#rS').value=G.r;$('#rV').textContent=G.r;$('#rS').oninput=e=>{G.r=+e.target.value;$('#rV').textContent=G.r;place()};
 $('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);OFF.la+=c.lat-p[0];OFF.ln+=c.lng-p[1];place();toast('Zones centered on map view')};
 stepUI();draw();
 </script></body></html>
