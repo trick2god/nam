@@ -25,6 +25,10 @@ header{display:flex;align-items:center;gap:10px;padding:10px 12px;background:lin
 .tg button{width:48px;height:42px;border:0;border-radius:12px;background:none;font-size:20px;cursor:pointer}
 .tg button.on{background:var(--navy)}
 .tg button#edit.on,.tg button#cal.on{background:var(--or)}
+#lay{top:68px;left:12px;display:none}#lay.on{display:grid}
+.lay{grid-template-columns:repeat(4,46px);gap:4px;padding:6px;display:grid}
+.lay button{height:42px;border:0;border-radius:10px;background:#eef1f8;color:#0b1530;font-size:19px;cursor:pointer}
+#layD{position:static;box-shadow:none;background:none;padding:0;margin-top:8px;display:grid}#layD button{background:var(--card2);color:var(--tx)}
 #banner{top:68px;left:12px;right:82px;padding:10px 14px;font-weight:700;display:none;background:var(--or);color:#fff;font-size:14px}
 #map.cal .leaflet-marker-pane{display:none}
 .flr{top:12px;right:12px;width:58px;padding:8px 4px;text-align:center}
@@ -86,7 +90,7 @@ pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radiu
 <div class="wbox flr" id="flr"><small>HEAT</small><button data-f="all" class="on">All</button><button data-f="hot">Hot</button><button data-f="warm">Warm</button><button data-f="cool">Cool</button><button data-f="mist">💦</button></div>
 <div class="wbox lg"><span><i style="background:hsl(190,85%,48%)"></i>Cool</span><span><i style="background:hsl(65,85%,48%)"></i>Warm</span><span><i style="background:hsl(5,85%,48%)"></i>Hot</span></div>
 <div class="wbox stk"><button id="zi">＋</button><button id="zo">－</button><button id="home" aria-label="Fit campus">⌂</button><button id="loc" aria-label="My location">◎</button></div>
-<div class="wbox" id="banner"></div><div id="attr"></div><div id="card"></div></section>
+<div class="wbox" id="banner"></div><div class="wbox lay" id="lay"></div><div id="attr"></div><div id="card"></div></section>
 
 <section class="v pn" id="vZones"><h2>Zones · hottest first</h2><div class="card" id="list"></div></section>
 
@@ -102,8 +106,7 @@ pre{overflow-x:auto;font-size:12px;background:var(--bg);padding:8px;border-radiu
 <div class="ctl"><label for="guard">Class-hours guard (7:00–16:00, skips kid-traffic zones)</label><input type="checkbox" id="guard" checked></div>
 <div class="ctl"><label for="rain">Rain mode (skip auto)</label><input type="checkbox" id="rain"></div>
 <div class="acts"><button class="btn" id="wave">🔥 Heatwave +4°</button><button class="btn" id="clr">Clear log</button></div></div>
-<div class="card"><h2>Align zones to the real map</h2><div class="sub">Fastest: tap ✋ on the map, then drag each circle onto its real building. Or use Size, Rotate, Center and the arrows to move everything at once.</div>
-<div class="ctl"><span>Size ×<b id="sV"></b></span><input type="range" id="sS" min="0.4" max="3" step="0.05"></div><div class="ctl"><span>Rotate <b id="rV"></b>°</span><input type="range" id="rS" min="-90" max="90" step="1"></div><div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nU">↑</button><button class="btn" id="nD">↓</button><button class="btn" id="nL">←</button><button class="btn" id="nR">→</button><button class="btn" id="nZ">Reset</button></div></div>
+<div class="card"><h2>Align zones to the real map</h2><div class="sub">Best: tap 📍 on the map, then tap the school’s 3 corners. Or tap ✋ to drag circles. These buttons rotate, resize and move all zones together: ↺ ↻ rotate, − + size, arrows move.</div><div class="lay" id="layD"></div><div class="acts"><button class="btn p" id="nC">Center on view</button><button class="btn" id="nZ">Reset</button></div></div>
 <div class="card"><h2>Trigger log</h2><div id="log"></div></div></section>
 
 <section class="v pn" id="vHelp">
@@ -142,9 +145,9 @@ const zn=id=>Z.find(x=>x.id==id),active=z=>z.until>Date.now();
 const cnt=z=>S.log.filter(e=>e.id==z.id&&Date.now()-e.t<864e5).length;
 // map
 const C0=[14.6989528,121.0816278],MU=0.33,KL=Math.cos(C0[0]*Math.PI/180);
-let G={la:0,ln:0,s:1,r:0,z:{}};try{G=Object.assign(G,JSON.parse(localStorage.getItem('gh_off')||'{}'))}catch(e){}
-const OFF=G;Z.forEach(z=>{const o=G.z[z.id]||[0,0];z.ol=o[0];z.on=o[1]});
-const proj=(x,y)=>{const dx=(x-165)*G.s,dy=(y-255)*G.s,a=G.r*Math.PI/180,c=Math.cos(a),n=Math.sin(a),X=dx*c-dy*n,Y=dx*n+dy*c;return[C0[0]-Y*MU/111320+G.la,C0[1]+X*MU/(111320*KL)+G.ln]};
+let G={M:[MU,0,0,-MU],T:[0,0],z:{}};try{const o=JSON.parse(localStorage.getItem('gh_g2')||'null');if(o&&o.M)G=o}catch(e){}
+Z.forEach(z=>{const o=G.z[z.id]||[0,0];z.ol=o[0];z.on=o[1]});
+const proj=(x,y)=>{const dx=x-165,dy=y-255,e=G.M[0]*dx+G.M[1]*dy+G.T[0],n=G.M[2]*dx+G.M[3]*dy+G.T[1];return[C0[0]+n/111320,C0[1]+e/(111320*KL)]};
 const pz=(z,x,y)=>{const p=proj(x,y);return[p[0]+z.ol,p[1]+z.on]};
 const R=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const PTS={forest:[[150,170],[140,120],[155,80],[200,64],[245,80],[260,120],[250,170]],main:R(95,215,80,130),court:R(180,215,105,130),g1112:R(30,215,55,200),park:R(95,385,190,95),front:R(60,14,240,40)};
@@ -162,21 +165,20 @@ z.mk=L.marker(pz(z,z.cx,z.cy),{icon:L.divIcon({className:'',iconSize:[0,0],html:
 const pick=()=>{if(S.cal)return;S.sel=z.id;S.card=true;draw()};z.poly.on('click',pick);z.mk.on('click',pick);
 const mv=()=>{const ll=z.mk.getLatLng(),b=proj(z.cx,z.cy);z.ol=ll.lat-b[0];z.on=ll.lng-b[1];G.z[z.id]=[z.ol,z.on];z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5))};
 z.mk.on('drag',mv);z.mk.on('dragend',()=>{mv();place()})});
-function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5));z.mk.setLatLng(pz(z,z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_off',JSON.stringify(OFF))}catch(e){}}
+function place(){Z.forEach(z=>{z.poly.setLatLngs(PTS[z.id].map(p=>pz(z,...p)));z.heat.setLatLng(pz(z,z.cx,z.cy-5));z.mk.setLatLng(pz(z,z.cx,z.cy))});bnd.setLatLngs(BND.map(p=>proj(...p)));try{localStorage.setItem('gh_g2',JSON.stringify(G))}catch(e){}}
 const fit=()=>map.fitBounds(bnd.getBounds(),{padding:[16,16]});
 setBase();fit();
-const CAL=['Step 1 of 2: tap the middle of the Forest Park (green trees area)','Step 2 of 2: tap the middle of the Parking Lot'];
-let CA=null;
+const CAL=['Step 1 of 3: tap the school’s TOP-LEFT corner (Ocampo Ave side, Ecol St side)','Step 2 of 3: tap the TOP-RIGHT corner (other end of the Ocampo Ave side)','Step 3 of 3: tap the BOTTOM-LEFT corner (other end of the Ecol St side)'];
+let CA=[];
 function calUI(){$('#banner').style.display=S.cal?'block':'none';if(S.cal)$('#banner').textContent=CAL[S.cal-1];$('#map').classList.toggle('cal',!!S.cal);$('#cal').classList.toggle('on',!!S.cal)}
-function calSolve(A,B){
-const toE=l=>[(l.lng-C0[1])*111320*KL,(l.lat-C0[0])*111320],F=zn('forest'),P=zn('park'),a=toE(A),b=toE(B);
-const ua=[F.cx-165,-(F.cy-255)],ub=[P.cx-165,-(P.cy-255)],m=ub[0]-ua[0],n=ub[1]-ua[1],p=b[0]-a[0],q=b[1]-a[1],dd=m*m+n*n;
-const k=[(p*m+q*n)/dd,(q*m-p*n)/dd],kua=[k[0]*ua[0]-k[1]*ua[1],k[0]*ua[1]+k[1]*ua[0]];
-G.s=+(Math.hypot(k[0],k[1])/MU).toFixed(3);G.r=+(-Math.atan2(k[1],k[0])*180/Math.PI).toFixed(1);
-G.ln=(a[0]-kua[0])/(111320*KL);G.la=(a[1]-kua[1])/111320;G.z={};Z.forEach(z=>{z.ol=0;z.on=0});
-$('#sS').value=G.s;$('#sV').textContent=G.s;$('#rS').value=G.r;$('#rV').textContent=G.r;place()}
-map.on('click',e=>{if(!S.cal)return;if(S.cal==1){CA=e.latlng;S.cal=2;calUI()}else{S.cal=0;calUI();calSolve(CA,e.latlng);toast('Zones aligned to your two taps')}});
-function setEdit(){Z.forEach(z=>z.mk.dragging[S.edit?'enable':'disable']());$('#map').classList.toggle('editing',!!S.edit);$('#edit').classList.toggle('on',!!S.edit);if(S.edit)toast('Drag each circle onto its real building')}
+function calSolve(P){
+const toE=l=>[(l.lng-C0[1])*111320*KL,(l.lat-C0[0])*111320],a=toE(P[0]),b=toE(P[1]),c=toE(P[2]);
+const x0=BND[0][0],y0=BND[0][1],W=BND[1][0]-x0,H=BND[3][1]-y0;
+const Mx=[(b[0]-a[0])/W,(b[1]-a[1])/W],My=[(c[0]-a[0])/H,(c[1]-a[1])/H];
+G.M=[Mx[0],My[0],Mx[1],My[1]];G.T=[a[0]+Mx[0]*(165-x0)+My[0]*(255-y0),a[1]+Mx[1]*(165-x0)+My[1]*(255-y0)];
+G.z={};Z.forEach(z=>{z.ol=0;z.on=0});place()}
+map.on('click',e=>{if(!S.cal)return;CA.push(e.latlng);if(S.cal<3){S.cal++;calUI()}else{S.cal=0;calUI();calSolve(CA);CA=[];fit();toast('Campus aligned to your 3 corners')}});
+function setEdit(){$('#lay').classList.toggle('on',!!S.edit);Z.forEach(z=>z.mk.dragging[S.edit?'enable':'disable']());$('#map').classList.toggle('editing',!!S.edit);$('#edit').classList.toggle('on',!!S.edit);if(S.edit)toast('Drag each circle onto its real building')}
 setEdit();
 function go(id,sec,mode){const z=zn(id),l=Math.round(sec*z.lps);
 if(S.tank<l){toast('Tank too low – refill first');return false}
@@ -239,7 +241,7 @@ document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>show(b.
 $('#fab').onclick=()=>{S.tz=S.sel;S.step=1;stepUI();show('vMist')};
 document.querySelectorAll('#tg button').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;setBase();draw()});
 document.querySelectorAll('#flr button').forEach(b=>b.onclick=()=>{S.f=b.dataset.f;document.querySelectorAll('#flr button').forEach(x=>x.classList.toggle('on',x==b));draw()});
-$('#cal').onclick=()=>{S.cal=S.cal?0:1;if(S.cal){S.edit=false;setEdit();S.card=false}calUI();draw()};
+$('#cal').onclick=()=>{S.cal=S.cal?0:1;CA=[];if(S.cal){S.edit=false;setEdit();S.card=false}calUI();draw()};
 $('#edit').onclick=()=>{S.cal=0;calUI();S.edit=!S.edit;S.card=false;setEdit();draw()};
 $('#zi').onclick=()=>map.zoomIn();$('#zo').onclick=()=>map.zoomOut();$('#home').onclick=fit;
 $('#loc').onclick=()=>navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.latitude,p.coords.longitude];L.circleMarker(ll,{radius:8,color:'#fff',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);map.setView(ll,18)},()=>toast('Location unavailable')):toast('Location unavailable');
@@ -252,11 +254,13 @@ $('#hour').value=S.hour;$('#hrV').textContent=hm(S.hour);$('#hour').oninput=e=>{
 $('#wave').onclick=()=>{S.heat=S.heat?0:4;$('#wave').textContent=S.heat?'☀️ End heatwave':'🔥 Heatwave +4°';draw()};
 $('#refill').onclick=()=>{S.tank=1000;save();draw();toast('Tank refilled')};
 $('#clr').onclick=()=>{S.log=[];S.last={};save();draw()};
-const nudge=(dy,dx)=>{OFF.la+=dy*5/111320;OFF.ln+=dx*5/(111320*KL);place()};
-$('#nU').onclick=()=>nudge(1,0);$('#nD').onclick=()=>nudge(-1,0);$('#nL').onclick=()=>nudge(0,-1);$('#nR').onclick=()=>nudge(0,1);
-$('#nZ').onclick=()=>{Object.assign(G,{la:0,ln:0,s:1,r:0,z:{}});Z.forEach(z=>{z.ol=0;z.on=0});$('#sS').value=1;$('#rS').value=0;$('#sV').textContent=1;$('#rV').textContent=0;place();fit();toast('Layout reset')};
-$('#sS').value=G.s;$('#sV').textContent=G.s;$('#sS').oninput=e=>{G.s=+e.target.value;$('#sV').textContent=G.s;place()};
-$('#rS').value=G.r;$('#rV').textContent=G.r;$('#rS').oninput=e=>{G.r=+e.target.value;$('#rV').textContent=G.r;place()};
-$('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);OFF.la+=c.lat-p[0];OFF.ln+=c.lng-p[1];place();toast('Zones centered on map view')};
+const LB=[['rl','↺'],['rr','↻'],['sm','−'],['sp','+'],['mu','↑'],['md','↓'],['ml','←'],['mr','→']];
+$('#lay').innerHTML=$('#layD').innerHTML=LB.map(b=>`<button data-o="${b[0]}">${b[1]}</button>`).join('');
+const rot=d=>{const a=d*Math.PI/180,c=Math.cos(a),n=Math.sin(a),[p,q,r,t]=G.M;G.M=[c*p-n*r,c*q-n*t,n*p+c*r,n*q+c*t]};
+const mvT=(e,n)=>{G.T[0]+=e;G.T[1]+=n};
+const OPS={rl:()=>rot(3),rr:()=>rot(-3),sm:()=>G.M=G.M.map(v=>v*.95),sp:()=>G.M=G.M.map(v=>v*1.05),mu:()=>mvT(0,4),md:()=>mvT(0,-4),ml:()=>mvT(-4,0),mr:()=>mvT(4,0)};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-o]');if(b){OPS[b.dataset.o]();place()}});
+$('#nZ').onclick=()=>{G={M:[MU,0,0,-MU],T:[0,0],z:{}};Z.forEach(z=>{z.ol=0;z.on=0});place();fit();toast('Layout reset')};
+$('#nC').onclick=()=>{const c=map.getCenter(),p=proj(165,255);G.T[0]+=(c.lng-p[1])*111320*KL;G.T[1]+=(c.lat-p[0])*111320;place();toast('Zones centered on map view')};
 stepUI();draw();
 </script></body></html>
