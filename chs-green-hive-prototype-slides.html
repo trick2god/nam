@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GreenHive Mini: Tabletop Prototype</title>
+<style>
+  :root {
+    --green: #0b7a3e; --green-2: #12a150; --green-soft: #e6f4ec;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781; --line: #e1e0d9;
+    --bg: #f9f9f7; --card: #ffffff;
+    --blue: #2a78d6; --orange: #eb6834; --red: #d03b3b; --amber: #fab219;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #20201f; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; }
+  .deck { width: 1280px; height: 720px; position: relative; transform-origin: center; }
+  .slide { position: absolute; inset: 0; background: var(--bg); padding: 44px 60px 54px; display: none; overflow: hidden; border-radius: 6px; }
+  .slide.active { display: block; }
+  .slide h1 { font-size: 44px; margin: 0 0 6px; }
+  .slide h2 { font-size: 32px; margin: 0 0 4px; }
+  .sub { color: var(--ink-2); font-size: 18px; margin: 0 0 16px; }
+  .slide p, .slide li { font-size: 17px; line-height: 1.45; }
+  .slide ul, .slide ol { margin: 6px 0; padding-left: 22px; }
+  .slide li { margin: 4px 0; }
+  .kicker { color: var(--green); font-weight: 800; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+  .foot { position: absolute; left: 60px; right: 60px; bottom: 18px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 15px; }
+  .card h3 { margin: 4px 0 4px; font-size: 17px; }
+  .card p, .card li { font-size: 14px; margin: 2px 0; color: var(--ink-2); line-height: 1.4; }
+  .pic { width: 100%; height: 84px; display: block; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; background: var(--green-soft); color: var(--green); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 800; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.total td { font-weight: 800; border-top: 2px solid var(--ink); border-bottom: 0; }
+  a { color: var(--blue); text-decoration: none; }
+  .callout { background: #fff4dc; border-left: 5px solid var(--amber); padding: 10px 14px; border-radius: 8px; font-size: 15px; }
+  .callout.red { background: #fde8e8; border-color: var(--red); }
+  .callout.green { background: var(--green-soft); border-color: var(--green); }
+  .callout.blue { background: #e8f1fc; border-color: var(--blue); }
+  .step { display: flex; gap: 12px; align-items: flex-start; margin: 9px 0; }
+  .step b.n { flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-size: 14px; }
+  .step div { font-size: 16px; line-height: 1.4; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .9em; background: #efeee9; padding: 1px 5px; border-radius: 4px; }
+  pre { background: #1a1a19; color: #e8e8e3; border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin: 6px 0; white-space: pre-wrap; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  pre .c { color: #8fd19e; }
+  .title { background: linear-gradient(135deg, #1f5fbf 0%, #0b7a3e 70%, #083d22 100%); color: #fff; }
+  .title h1 { font-size: 62px; margin-top: 70px; }
+  .title .sub { color: rgba(255,255,255,.88); font-size: 22px; }
+  .title .foot { color: rgba(255,255,255,.6); }
+  .glass { background: rgba(255,255,255,.12); border-radius: 14px; padding: 16px 18px; }
+  #bar { position: fixed; left: 0; bottom: 0; height: 4px; background: var(--green-2); transition: width .2s; z-index: 5; }
+  #nav { position: fixed; right: 14px; bottom: 12px; display: flex; gap: 6px; z-index: 6; }
+  #nav button { border: 0; background: rgba(255,255,255,.9); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  #count { color: #ddd; font-size: 13px; align-self: center; margin-right: 6px; }
+  #help { position: fixed; left: 14px; top: 8px; color: #aaa; font-size: 12px; z-index: 6; }
+  @media screen { .foot span:last-child { visibility: hidden; } }
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    html, body { background: #fff; }
+    #stage { position: static; display: block; }
+    .deck { transform: none !important; width: auto; height: auto; }
+    .slide { display: block !important; position: relative; width: 1280px; height: 720px; page-break-after: always; border-radius: 0; }
+    #nav, #bar, #help { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide title">
+  <div class="kicker" style="color:#d6ecff">CHS GreenHive · Step zero</div>
+  <h1>GreenHive Mini 🧪</h1>
+  <p class="sub">A tabletop prototype of the whole system: a <b>real mini misting line</b> (pump + valve + tiny nozzles),<br>a self-watering plant, the same brain and the same program. Build it in 1–2 weekends.</p>
+  <div class="grid g3" style="margin-top:44px;max-width:980px">
+    <div class="glass"><div style="font-size:30px;font-weight:800">≈ ₱4,000</div><div style="opacity:.85">parts (we already have the Orange Pi)</div></div>
+    <div class="glass"><div style="font-size:30px;font-weight:800">12 V + 5 V</div><div style="opacity:.85">plug-in adapters only, no wall wiring</div></div>
+    <div class="glass"><div style="font-size:30px;font-weight:800">Same code</div><div style="opacity:.85"><code style="background:rgba(255,255,255,.2);color:#fff">chs-green-hive.py</code> + a prototype config</div></div>
+  </div>
+  <div class="foot"><span>Press → to start</span><span>1</span></div>
+</section>
+
+<!-- 2 WHAT IS MISTING -->
+<section class="slide">
+  <div class="kicker">First: what we mean by "misting"</div>
+  <h2>💦 Water only, through very tiny holes: a mini shower that doesn't drip</h2>
+  <div class="grid g2" style="margin-top:14px;align-items:center">
+    <svg viewBox="0 0 560 330" style="width:100%">
+      <g font-family="system-ui" font-size="13">
+        <rect x="10" y="40" width="540" height="16" rx="8" fill="#111"/>
+        <text x="20" y="30" fill="#52514e">hose / tube full of water under pressure →</text>
+        <g id="spray"></g>
+        <rect x="10" y="300" width="540" height="10" fill="#c3c2b7"/><text x="280" y="296" text-anchor="middle" fill="#52514e">floor stays dry: the tiny drops evaporate before they land</text>
+      </g>
+    </svg>
+    <div>
+      <ul>
+        <li>A <b>tube</b> carries water, with <b>several nozzle outlets</b> along it (one every 40–60 cm)</li>
+        <li>Each nozzle has a <b>very tiny hole</b> (0.2–0.4 mm, thinner than a pencil line)</li>
+        <li>A <b>pump</b> pushes the water hard (70–100 psi), so it bursts out as <b>very fine drops</b>, like a mini shower or spray bottle</li>
+        <li>The drops are so small they <b>evaporate in the air</b>, and evaporation takes heat away. That's the cooling!</li>
+        <li>No chemicals, no electricity near the water outlets: <b>just water</b></li>
+      </ul>
+      <div class="callout blue" style="margin-top:10px">This is exactly how the big school system works. The prototype is the <b>same thing, just shorter</b>: 1 m of tube and 3 nozzles instead of 10 m and 10 nozzles.</div>
+    </div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>2</span></div>
+</section>
+
+<!-- 3 WHY -->
+<section class="slide">
+  <div class="kicker">Why build a mini one first?</div>
+  <h2>Small mistakes are cheap mistakes</h2>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>✅ What the prototype proves</h3><ul>
+      <li>The Orange Pi reads <b>real sensors</b> (temperature, soil, rain, water level)</li>
+      <li>The program switches a <b>real pump + valve</b> at the right time</li>
+      <li>The mini misting line sprays fine drops and <b>lowers the temperature</b> next to it</li>
+      <li>The plant gets water <b>only when the soil is dry</b></li>
+      <li>The safety features work: tank empty, rain, E-STOP</li></ul></div>
+    <div class="card"><h3>🎓 What you learn before the big build</h3><ul>
+      <li>Wiring relays, a pump and a solenoid valve</li>
+      <li>Push-in tube fittings and nozzles, and fixing leaks</li>
+      <li>Setting up Linux on the Orange Pi, calibrating a soil sensor</li>
+      <li>Reading the dashboard</li></ul>
+      <p style="margin-top:8px"><b>Bonus:</b> a working model is the best way to convince the principal to fund the real one. 🙌</p></div>
+  </div>
+  <div class="callout green" style="margin-top:16px"><b>Lots of the real parts get reused:</b> Orange Pi, SHT31, ADS1115, soil sensor, rain sensor, jumper wires, the 12 V → 5 V converter, and the extra nozzles become spares.</div>
+  <div class="foot"><span>GreenHive Mini</span><span>3</span></div>
+</section>
+
+<!-- 4 LOOK -->
+<section class="slide">
+  <div class="kicker">What it looks like</div>
+  <h2>A mini campus on one board (about 80 × 50 cm)</h2>
+  <svg viewBox="0 0 1160 480" style="width:100%;height:490px">
+    <g font-family="system-ui" font-size="14">
+      <rect x="20" y="20" width="1120" height="430" rx="16" fill="#e9dcc7" stroke="#c8b796"/>
+      <text x="40" y="48" fill="#7a6a4c" font-weight="700">plywood base</text>
+      <rect x="60" y="60" width="150" height="80" rx="8" fill="#1f6f3a"/><text x="135" y="96" fill="#fff" text-anchor="middle" font-weight="700">Orange Pi</text><text x="135" y="116" fill="#cfe9da" text-anchor="middle" font-size="12">the brain</text>
+      <rect x="230" y="60" width="150" height="80" rx="8" fill="#1f5fbf"/><text x="305" y="96" fill="#fff" text-anchor="middle" font-weight="700">4-ch relay</text><text x="305" y="116" fill="#dbe8fb" text-anchor="middle" font-size="12">the switches</text>
+      <rect x="400" y="60" width="140" height="80" rx="8" fill="#6b3fa0"/><text x="470" y="96" fill="#fff" text-anchor="middle" font-weight="700">breadboard</text><text x="470" y="116" fill="#eadcff" text-anchor="middle" font-size="12">ADS1115 + wires</text>
+      <rect x="560" y="60" width="160" height="80" rx="8" fill="#111"/><text x="640" y="96" fill="#fff" text-anchor="middle" font-weight="700">adapters</text><text x="640" y="116" fill="#ccc" text-anchor="middle" font-size="12">12 V 5 A + Pi 5 V</text>
+      <rect x="1000" y="64" width="110" height="56" rx="4" fill="#2563eb"/><path d="M1006,74 h98 v6 h-98 v6 h98 v6 h-98 v6 h98" stroke="#e5e7eb" stroke-width="2" fill="none"/><text x="1055" y="138" text-anchor="middle" font-size="12">rain sensor</text>
+      <rect x="60" y="320" width="560" height="100" rx="8" fill="#9ca3af" opacity=".45" stroke="#6b7280"/>
+      <text x="340" y="400" text-anchor="middle" fill="#374151" font-weight="700">mini walkway inside a plastic tray (catches the spray)</text>
+      <rect x="70" y="190" width="8" height="130" fill="#8a7a5c"/><rect x="600" y="190" width="8" height="130" fill="#8a7a5c"/>
+      <rect x="60" y="182" width="560" height="10" fill="#8a7a5c"/>
+      <path d="M78,205 H600" stroke="#111" stroke-width="6"/>
+      <text x="340" y="174" text-anchor="middle" fill="#52514e">¼″ misting tube with 3 nozzles, fixed under the "roof"</text>
+      <g id="lookspray"></g>
+      <rect x="520" y="270" width="40" height="40" rx="6" fill="#fff" stroke="#9ca3af"/><text x="540" y="294" text-anchor="middle" font-size="11">SHT31</text>
+      <rect x="680" y="250" width="130" height="170" rx="10" fill="#2a78d6" opacity=".85"/><rect x="680" y="320" width="130" height="100" fill="#1c5cab"/>
+      <text x="745" y="300" fill="#fff" text-anchor="middle" font-weight="700">bucket 10–20 L</text>
+      <circle cx="790" cy="340" r="8" fill="#fab219"/><text x="745" y="440" text-anchor="middle" font-size="12">float switch inside</text>
+      <rect x="690" y="180" width="80" height="44" rx="8" fill="#555"/><text x="730" y="207" fill="#fff" text-anchor="middle" font-size="12">12 V pump</text>
+      <rect x="630" y="186" width="44" height="32" rx="4" fill="#222"/><text x="652" y="207" fill="#fff" text-anchor="middle" font-size="10">valve</text>
+      <path d="M730,224 V262" stroke="#93c5fd" stroke-width="5"/><text x="738" y="242" font-size="11">intake + filter</text>
+      <path d="M690,202 H674 M630,202 H608" stroke="#111" stroke-width="5"/>
+      <path d="M880,300 h120 l-14,100 h-92z" fill="#b45309"/><path d="M940,300 c-30,-60 -10,-90 0,-110 c10,20 30,50 0,110" fill="#16a34a"/><path d="M940,300 c30,-40 40,-60 50,-80" stroke="#16a34a" stroke-width="8" fill="none"/>
+      <rect x="970" y="312" width="10" height="50" fill="#111"/><text x="1030" y="350" font-size="12">soil sensor</text>
+      <path d="M800,380 C840,380 860,290 920,295" stroke="#93c5fd" stroke-width="4" fill="none"/><text x="850" y="276" font-size="12">USB pump + tube</text>
+      <path d="M620,420 C640,440 670,440 690,420" stroke="#2a78d6" stroke-width="3" fill="none" stroke-dasharray="5 4"/><text x="440" y="446" font-size="11" fill="#2a78d6">tray drains back into the bucket →</text>
+    </g>
+  </svg>
+  <div class="foot"><span>GreenHive Mini</span><span>4</span></div>
+</section>
+
+<!-- 5 REAL VS MINI -->
+<section class="slide">
+  <div class="kicker">Real vs. mini</div>
+  <h2>Same idea, smaller parts</h2>
+  <table style="margin-top:10px;font-size:15px">
+    <tr><th>Job</th><th>Real system (school)</th><th>Mini prototype (table)</th><th>Relay</th></tr>
+    <tr><td>🧠 Brain</td><td>Orange Pi One</td><td><b>Same</b> Orange Pi One</td><td>—</td></tr>
+    <tr><td>⚙ Push water hard</td><td>12 V 100 psi diaphragm pump</td><td><b>12 V mini diaphragm pump</b> (70–115 psi)</td><td>R1</td></tr>
+    <tr><td>🚰 Open/close the mist line</td><td>½″ 12 V solenoid valve</td><td><b>¼″ 12 V mini solenoid valve</b></td><td>R2</td></tr>
+    <tr><td>💦 Make the spray</td><td>3/8″ tube, 10 nozzles, 10 m</td><td><b>¼″ tube, 3 nozzles, 1 m</b></td><td>—</td></tr>
+    <tr><td>🌱 Water the garden</td><td>Zero-pressure valve + 16 mm drip hose</td><td><b>5 V USB mini pump</b> + aquarium tube</td><td>R4</td></tr>
+    <tr><td>🪣 Water tank</td><td>200–1000 L tank + float switch</td><td>10–20 L bucket + <b>mini float switch</b></td><td>—</td></tr>
+    <tr><td>🌡 🌧 Sensors</td><td>SHT31, soil, rain</td><td><b>Same</b> sensors</td><td>—</td></tr>
+    <tr><td>🔌 Switches</td><td>8-channel relay board</td><td>4-channel relay board</td><td>—</td></tr>
+    <tr><td>⚡ Power</td><td>12 V 10 A supply + 220 V outlet (electrician)</td><td><b>Plug-in adapters</b>: 12 V 5 A + the Pi's 5 V</td><td>—</td></tr>
+  </table>
+  <div class="callout blue" style="margin-top:12px">Just like the real one: the program opens the <b>valve first</b>, then starts the <b>pump</b>; it stops the pump first, then closes the valve. The pump never pushes against a closed valve.</div>
+  <div class="foot"><span>GreenHive Mini</span><span>5</span></div>
+</section>
+
+<!-- 6 PARTS -->
+<section class="slide">
+  <div class="kicker">Shopping list</div>
+  <h2>🛒 Parts for the mini prototype</h2>
+  <p class="sub">Estimated Shopee prices (Nov 2026). Click a name to search. ♻ = reused in the real build.</p>
+  <div class="grid g2" style="align-items:start">
+    <table id="partsA"></table>
+    <div><table id="partsB"></table><table id="partsTotal" style="margin-top:8px"></table></div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>6</span></div>
+</section>
+
+<!-- 7 PARTS EXPLAINED -->
+<section class="slide">
+  <div class="kicker">The water parts, explained</div>
+  <h2>What each mini misting part does</h2>
+  <div class="grid g4" style="margin-top:12px">
+    <div class="card"><svg class="pic" data-pic="minipump"></svg><h3>⚙ 12 V mini diaphragm pump</h3><p>Sucks water from the bucket and pushes it out at <b>70–115 psi</b>. Has a built-in pressure switch. Look for "0.5–0.8 MPa".</p></div>
+    <div class="card"><svg class="pic" data-pic="minivalve"></svg><h3>🚰 ¼″ mini solenoid valve</h3><p>An electric tap: 12 V = open. "Normally closed", so it shuts when the power is off. The arrow on it = the water direction.</p></div>
+    <div class="card"><svg class="pic" data-pic="nozzles"></svg><h3>💦 Mist nozzles (×3)</h3><p>Brass nozzles with a <b>0.3 mm hole</b>. They screw into <b>slip-lock tees</b> on the ¼″ tube. Water in → fine spray out.</p></div>
+    <div class="card"><svg class="pic" data-pic="tube"></svg><h3>〰 ¼″ (6 mm) misting tube</h3><p>Strong plastic tube for high pressure. Cut it straight, push it into the fittings until it clicks. One <b>end plug</b> at the far end.</p></div>
+    <div class="card"><svg class="pic" data-pic="filter"></svg><h3>🧽 Inline filter</h3><p>Between the bucket and the pump. A grain of sand can block a 0.3 mm hole!</p></div>
+    <div class="card"><svg class="pic" data-pic="usbpump"></svg><h3>💧 USB mini pump (plant)</h3><p>Sits inside the bucket and gently pushes water up an aquarium tube to the plant pot. Low pressure = perfect for watering.</p></div>
+    <div class="card"><svg class="pic" data-pic="minifloat"></svg><h3>🟡 Mini float switch</h3><p>Inside the bucket. When the water gets low it says "stop!", so the pumps never run dry.</p></div>
+    <div class="card"><svg class="pic" data-pic="buck"></svg><h3>🔋 12 V → 5 V converter</h3><p>Makes 5 V from the 12 V adapter, for the relay coils and the USB plant pump. Set it to 5.0 V with the multimeter first.</p></div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>7</span></div>
+</section>
+
+<!-- 8 WIRING -->
+<section class="slide">
+  <div class="kicker">Wiring · everything unplugged while you connect</div>
+  <h2>🔌 How to wire the mini prototype</h2>
+  <svg viewBox="0 0 1160 430" style="width:100%;height:420px">
+    <g font-family="system-ui" font-size="13">
+      <rect x="10" y="20" width="230" height="390" rx="12" fill="#1f6f3a"/><text x="125" y="46" fill="#fff" text-anchor="middle" font-weight="700" font-size="15">Orange Pi One</text>
+      <g fill="#fff">
+        <text x="30" y="80">pin 1 · 3.3 V</text><text x="30" y="110">pin 6 · GND</text><text x="30" y="140">pin 3 · SDA</text><text x="30" y="170">pin 5 · SCL</text>
+        <text x="30" y="210">pin 7 · → IN1 (pump)</text><text x="30" y="240">pin 11 · → IN2 (valve)</text><text x="30" y="270">pin 15 · → IN4 (plant)</text>
+        <text x="30" y="310">pin 31 · float switch</text><text x="30" y="340">pin 33 · rain DO</text>
+        <text x="30" y="390" fill="#cfe9da">power: its own 5 V adapter</text>
+      </g>
+      <rect x="330" y="20" width="230" height="170" rx="12" fill="#6b3fa0"/><text x="445" y="46" fill="#fff" text-anchor="middle" font-weight="700" font-size="15">Breadboard</text>
+      <g fill="#fff"><text x="345" y="76">SHT31 + ADS1115:</text><text x="345" y="98">VIN←3.3V · GND · SDA · SCL</text><text x="345" y="124">soil sensor signal → ADS A0</text><text x="345" y="150">10 kΩ: pin 31 ↔ 3.3 V</text><text x="345" y="174">rain: VCC 3.3V · GND · DO</text></g>
+      <path d="M240,76 H330 M240,106 H330 M240,136 H330 M240,166 H330" stroke="#fab219" stroke-width="2"/>
+      <rect x="330" y="210" width="230" height="200" rx="12" fill="#1f5fbf"/><text x="445" y="236" fill="#fff" text-anchor="middle" font-weight="700" font-size="15">4-ch relay board</text>
+      <g fill="#fff"><text x="345" y="262">VCC ← Pi 3.3 V · GND ← Pi GND</text><text x="345" y="284">IN1 ← 7 · IN2 ← 11 · IN4 ← 15</text><text x="345" y="308">JD-VCC ← converter 5 V (+)</text><text x="345" y="328">(jumper removed)</text><text x="345" y="356">COM1, COM2 ← +12 V (via fuse)</text><text x="345" y="380">COM4 ← +5 V (converter)</text></g>
+      <path d="M240,206 H330 M240,236 H330 M240,266 H330" stroke="#e6b800" stroke-width="3"/>
+      <rect x="620" y="20" width="200" height="70" rx="10" fill="#111"/><text x="720" y="50" fill="#fff" text-anchor="middle" font-weight="700">12 V 5 A adapter</text><text x="720" y="72" fill="#ccc" text-anchor="middle">+ 5 A inline fuse</text>
+      <rect x="860" y="20" width="200" height="70" rx="10" fill="#1d4ed8"/><text x="960" y="50" fill="#fff" text-anchor="middle" font-weight="700">12 V → 5 V converter</text><text x="960" y="72" fill="#dbe8fb" text-anchor="middle">relay coils + USB pump</text>
+      <path d="M820,40 H860" stroke="#d03b3b" stroke-width="4"/>
+      <path d="M680,90 V125 H600 V355 H560" stroke="#d03b3b" stroke-width="4" fill="none"/><text x="606" y="145" fill="#d03b3b" font-weight="700">+12 V</text>
+      <path d="M960,90 V110 H586 V378 H560" stroke="#f97316" stroke-width="3" fill="none"/><text x="880" y="106" fill="#f97316" font-weight="700">+5 V</text>
+      <rect x="880" y="160" width="210" height="50" rx="8" fill="#555"/><text x="985" y="190" fill="#fff" text-anchor="middle">⚙ 12 V mini pump (R1)</text>
+      <rect x="880" y="240" width="210" height="50" rx="8" fill="#222"/><text x="985" y="270" fill="#fff" text-anchor="middle">🚰 ¼″ mist valve (R2)</text>
+      <rect x="880" y="320" width="210" height="50" rx="8" fill="#0ca30c"/><text x="985" y="350" fill="#fff" text-anchor="middle">💧 USB plant pump (R4)</text>
+      <path d="M560,300 C700,300 760,185 880,185 M560,320 C700,320 760,265 880,265 M560,340 C700,340 760,345 880,345" stroke="#d03b3b" stroke-width="3" fill="none"/>
+      <text x="690" y="236" fill="#52514e">relay NO → red (+) wire</text>
+      <path d="M1090,185 H1120 V420 H760 M1090,265 H1120 M1090,345 H1120" stroke="#111" stroke-width="3" fill="none"/>
+      <text x="790" y="412" fill="#111" font-weight="700">all black (−) wires → adapter − and Pi GND</text>
+    </g>
+  </svg>
+  <div class="callout red" style="margin-top:2px;font-size:14px"><b>Diode rule:</b> a 1N4007 across the pump, the valve and the USB pump (silver stripe on the + side). <b>Never</b> connect 12 V or 5 V + to an Orange Pi pin. Keep the 12 V adapter's plug far from the water.</div>
+  <div class="foot"><span>GreenHive Mini</span><span>8</span></div>
+</section>
+
+<!-- 9 WIRES & TUBES -->
+<section class="slide">
+  <div class="kicker">Which wire / tube?</div>
+  <h2>🧵 Wires and tubes for the mini build</h2>
+  <div class="grid g2" style="margin-top:12px;align-items:start">
+    <table>
+      <tr><th>Connection</th><th>Use</th></tr>
+      <tr><td>Pi pins → relay, breadboard</td><td><b>Female-female</b> jumper wires</td></tr>
+      <tr><td>Breadboard → sensor boards</td><td><b>Male-female</b> jumper wires</td></tr>
+      <tr><td>12 V adapter → fuse → relay COM</td><td><b>18 AWG</b> (≈ 1.0 mm²) red/black wire: the pump pulls 2–4 A</td></tr>
+      <tr><td>Relay NO → pump, valve</td><td><b>18 AWG</b> red/black wire</td></tr>
+      <tr><td>Converter → relay JD-VCC, USB pump</td><td><b>22 AWG</b> red/black wire (cut the USB cable: red = +, black = −)</td></tr>
+      <tr><td>Joining 2 wires</td><td>Wago lever connector, or screw terminal block</td></tr>
+    </table>
+    <div>
+      <table>
+        <tr><th>Water part</th><th>Use</th></tr>
+        <tr><td>Bucket → filter → pump inlet</td><td>Clear PVC hose, the pump's size (usually 8–10 mm) + <b>hose clamps</b></td></tr>
+        <tr><td>Pump outlet → valve → nozzles</td><td><b>¼″ (6 mm) high-pressure misting tube</b> + ¼″ <b>slip-lock</b> fittings (adapter from the pump/valve thread to ¼″)</td></tr>
+        <tr><td>Nozzle spots</td><td><b>Slip-lock nozzle tees</b> every 30 cm, plus 1 <b>end plug</b></td></tr>
+        <tr><td>Threads</td><td><b>Teflon tape</b>, 5 turns clockwise</td></tr>
+        <tr><td>USB pump → plant</td><td>Silicone aquarium tube 4/6 mm</td></tr>
+      </table>
+      <div class="callout" style="margin-top:10px">Pump threads and ¼″ tube sizes vary between sellers. Buy the <b>pump, valve and fittings from one seller</b>, or ask them "will these fit together?" before you order.</div>
+    </div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>9</span></div>
+</section>
+
+<!-- 10 BUILD STEPS -->
+<section class="slide">
+  <div class="kicker">Build it</div>
+  <h2>🛠 7 steps, about 1–2 weekends</h2>
+  <div class="grid g2" style="margin-top:10px">
+    <div>
+      <div class="step"><b class="n">1</b><div><b>Set up the Orange Pi.</b> Armbian on the microSD, network cable, enable I2C, copy the project to <code>/opt/greenhive</code> (real build guide, step 1).</div></div>
+      <div class="step"><b class="n">2</b><div><b>Sensors on the breadboard.</b> SHT31 + ADS1115 on 3.3 V / GND / SDA / SCL. Check: <code>sudo i2cdetect -y 0</code> shows 44 and 48.</div></div>
+      <div class="step"><b class="n">3</b><div><b>Relay board.</b> IN1 = pin 7, IN2 = pin 11, IN4 = pin 15. Take off the JD-VCC jumper, feed it 5 V from the converter.</div></div>
+      <div class="step"><b class="n">4</b><div><b>Table test, no water.</b> Run the program, press <b>Run 5 min</b>: the relays click, the valve "clunks", the pump hums.</div></div>
+    </div>
+    <div>
+      <div class="step"><b class="n">5</b><div><b>Mist line.</b> Bucket → filter → pump → valve → ¼″ tube with 3 nozzle tees and an end plug. <b>Leak test</b> with the tube lying in the tray first.</div></div>
+      <div class="step"><b class="n">6</b><div><b>Plant + safety sensors.</b> USB pump and float switch inside the bucket, aquarium tube to the pot, soil sensor in the soil up to the line.</div></div>
+      <div class="step"><b class="n">7</b><div><b>Build the mini campus.</b> Walkway inside a plastic tray, popsicle/wood "roof" holding the mist tube, SHT31 about 30 cm from the nozzles, rain sensor on top, the tray draining back into the bucket.</div></div>
+    </div>
+  </div>
+  <div class="callout green" style="margin-top:10px">Test after <b>every</b> step. Fix the problem before you move to the next one.</div>
+  <div class="foot"><span>GreenHive Mini</span><span>10</span></div>
+</section>
+
+<!-- 11 SOFTWARE -->
+<section class="slide">
+  <div class="kicker">Run the program</div>
+  <h2>💻 Start GreenHive in prototype mode</h2>
+  <div class="grid g2" style="margin-top:12px">
+    <div>
+<pre><span class="c"># on the Orange Pi</span>
+cd /opt/greenhive
+sudo python3 chs-green-hive.py --live \
+     --config chs-green-hive-config.prototype.json</pre>
+      <p>Open <code>http://&lt;pi-ip&gt;:8080</code> on a phone or laptop. You'll see 2 zones: <b>Mini walkway misting</b> and <b>Plant pot watering</b>.</p>
+      <div class="card"><h3>Calibrate the soil sensor first</h3><p>Sensor in the air = <b>dry</b> number; in a glass of water = <b>wet</b> number. Put both in the prototype config (<code>soil_dry_raw</code>, <code>soil_wet_raw</code>).</p></div>
+    </div>
+    <div class="card"><h3>What's different in the prototype config</h3>
+      <table>
+        <tr><th>Setting</th><th>Real</th><th>Mini</th></tr>
+        <tr><td>Start misting at heat index</td><td>33°C</td><td><b>30°C</b> (room temp)</td></tr>
+        <tr><td>Mist pulses</td><td>60 s on / 120 s off</td><td><b>15 s / 45 s</b></td></tr>
+        <tr><td>Watering run</td><td>20 min</td><td><b>15 seconds</b></td></tr>
+        <tr><td>Soak time</td><td>45 min</td><td><b>1 min</b></td></tr>
+        <tr><td>Active hours</td><td>school hours</td><td><b>any time</b> (for demos)</td></tr>
+        <tr><td>Relays</td><td>R1 pump · R2–R5 valves</td><td>R1 pump · R2 valve · R4 plant</td></tr>
+      </table>
+      <p style="margin-top:6px">All of these can be changed in <code>chs-green-hive-config.prototype.json</code>.</p>
+    </div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>11</span></div>
+</section>
+
+<!-- 12 DEMO -->
+<section class="slide">
+  <div class="kicker">Show time</div>
+  <h2>🎤 The 5-minute demo script</h2>
+  <table style="margin-top:12px;font-size:15px">
+    <tr><th>#</th><th>You do</th><th>What happens</th><th>What it proves</th></tr>
+    <tr><td>1</td><td>Point a <b>hair dryer</b> (low, warm) at the SHT31 from 30 cm</td><td>Heat index goes up → the <b>valve opens, the pump starts</b>, and the 3 nozzles spray in 15-second pulses</td><td>It reacts to heat automatically</td></tr>
+    <tr><td>2</td><td>Turn off the dryer and wait</td><td>The temperature near the sensor <b>drops</b> on the dashboard while misting</td><td>The fine spray really cools the air</td></tr>
+    <tr><td>3</td><td>Drip water on the <b>rain sensor</b></td><td>Everything stops: "Rain detected"</td><td>No wasted water in rain</td></tr>
+    <tr><td>4</td><td>Pull the soil sensor out of the pot (= dry)</td><td>The plant pump waters for <b>15 s</b>, waits 1 min, and repeats</td><td>Smart garden watering</td></tr>
+    <tr><td>5</td><td>Lift the float switch out of the water</td><td>Everything locks OFF: "Tank low"</td><td>The pumps never run dry</td></tr>
+    <tr><td>6</td><td>Press <b>EMERGENCY STOP</b> on a phone</td><td>Everything OFF instantly</td><td>Safe, controllable from anywhere</td></tr>
+  </table>
+  <div class="callout green" style="margin-top:14px"><b>Pro tip:</b> show the dashboard on a big screen next to the model, so people can see the numbers change as you do each step.</div>
+  <div class="foot"><span>GreenHive Mini</span><span>12</span></div>
+</section>
+
+<!-- 13 SAFETY -->
+<section class="slide">
+  <div class="kicker">Safety, mini edition</div>
+  <h2>⚠ Small, but still water + electricity + pressure</h2>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="card" style="border-top:6px solid var(--red)"><h3>Electronics up, water down</h3><p>Orange Pi, relays and adapters sit <b>higher</b> than the water and far from the spray. The walkway is inside a <b>tray</b>.</p></div>
+    <div class="card" style="border-top:6px solid var(--red)"><h3>Unplug before changing wires</h3><p>All adapters out of the wall before you move any wire. An adult plugs them in.</p></div>
+    <div class="card" style="border-top:6px solid var(--red)"><h3>Pressure = eye safety</h3><p>The pump pushes up to 100 psi. <b>Safety glasses</b> when testing, never point a nozzle at a face, never open a fitting while the pump runs.</p></div>
+    <div class="card" style="border-top:6px solid var(--amber)"><h3>Clean water only</h3><p>Use clean tap water with the filter in place. Empty and dry the bucket after demos so nothing grows in it.</p></div>
+    <div class="card" style="border-top:6px solid var(--amber)"><h3>Check for heat</h3><p>After 10 minutes, touch the adapter, relay and pump. Warm is OK; <b>too hot to hold</b> = unplug and check.</p></div>
+    <div class="card" style="border-top:6px solid var(--green)"><h3>Never 220 V in the model</h3><p>Only plug-in adapters (12 V and 5 V). No cutting wall cables, ever.</p></div>
+  </div>
+  <div class="foot"><span>GreenHive Mini</span><span>13</span></div>
+</section>
+
+<!-- 14 NEXT -->
+<section class="slide title">
+  <div class="kicker" style="color:#d6ecff">From mini to real</div>
+  <h1 style="margin-top:40px">It works on the table → let's build it for real 🚀</h1>
+  <div class="grid g2" style="margin-top:30px;max-width:1080px">
+    <div class="glass" style="font-size:17px;line-height:1.7">
+      <b>♻ Keep these for the real build</b><br>
+      Orange Pi + microSD + adapter · SHT31 · ADS1115 · soil + rain sensors<br>12 V → 5 V converter · jumper wires · Wago · spare nozzles
+    </div>
+    <div class="glass" style="font-size:17px;line-height:1.7">
+      <b>➕ Scale up for the real build</b><br>
+      bigger pump · ½″ valves · 3/8″ tube + 10 nozzles · drip kit<br>8-ch relay · 12 V 10 A supply · IP65 box · outdoor cables<br>
+      → see <b>chs-green-hive-slides.html</b> (the real build guide)
+    </div>
+  </div>
+  <div class="foot"><span>GreenHive Mini · Commonwealth High School</span><span>14</span></div>
+</section>
+
+</div></div>
+
+<div id="bar"></div>
+<div id="help">← → or Space to move · F = full screen · Ctrl+P = save as PDF</div>
+<div id="nav"><span id="count"></span><button id="prev">‹ Prev</button><button id="next">Next ›</button></div>
+
+<script>
+"use strict";
+// fine-spray cones under each nozzle (slides 2 and 4)
+function cone(cx, top, len, spread, n) {
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const t = ((i * 37) % 100) / 100, a = (((i * 53) % 100) / 100 - 0.5) * spread;
+    d += `<circle cx="${(cx + a * t * len).toFixed(1)}" cy="${(top + t * len).toFixed(1)}" r="${(1 + (i % 3) * 0.6).toFixed(1)}" fill="#60a5fa" opacity="${(0.85 - t * 0.7).toFixed(2)}"/>`;
+  }
+  return `<rect x="${cx - 6}" y="${top - 12}" width="12" height="12" rx="2" fill="#c8a24a"/>` + d;
+}
+document.getElementById("spray").innerHTML = [90, 230, 370, 510].map((x) => cone(x, 68, 190, 1.0, 90)).join("") +
+  `<text x="112" y="72" font-size="11" fill="#8a6d1f">← nozzle (0.3 mm hole)</text>`;
+document.getElementById("lookspray").innerHTML = [180, 340, 500].map((x) => cone(x, 216, 90, 1.1, 50)).join("");
+
+const PICS = {
+  minipump: `<rect x="18" y="30" width="62" height="38" rx="16" fill="#9ca3af"/><rect x="78" y="24" width="40" height="50" rx="8" fill="#111"/><rect x="116" y="30" width="20" height="10" fill="#d1d5db"/><rect x="116" y="58" width="20" height="10" fill="#d1d5db"/><text x="49" y="53" font-size="11" text-anchor="middle" font-weight="700">12V</text><text x="140" y="28" font-size="8" fill="#52514e">out</text><text x="140" y="80" font-size="8" fill="#52514e">in</text>`,
+  minivalve: `<rect x="40" y="48" width="80" height="22" rx="5" fill="#222"/><rect x="26" y="52" width="16" height="14" fill="#c8a24a"/><rect x="118" y="52" width="16" height="14" fill="#c8a24a"/><rect x="60" y="20" width="40" height="30" rx="4" fill="#333"/><path d="M70,20 q-6,-10 -16,-10 M90,20 q6,-10 16,-10" stroke="#d03b3b" stroke-width="2" fill="none"/><path d="M62,59 h30 l-6,-4 m6,4 l-6,4" stroke="#bbb" stroke-width="2" fill="none"/><text x="80" y="40" font-size="8" fill="#fff" text-anchor="middle">12V NC</text>`,
+  nozzles: `<path d="M10,28 h140" stroke="#111" stroke-width="7"/>${[40, 80, 120].map((x) => `<rect x="${x - 6}" y="24" width="12" height="10" fill="#555"/><rect x="${x - 4}" y="34" width="8" height="8" fill="#c8a24a"/>` + Array.from({ length: 22 }, (_, i) => { const t = ((i * 37) % 100) / 100, a = (((i * 53) % 100) / 100 - 0.5); return `<circle cx="${(x + a * t * 40).toFixed(1)}" cy="${(46 + t * 46).toFixed(1)}" r="1.2" fill="#60a5fa" opacity="${(0.9 - t * 0.6).toFixed(2)}"/>`; }).join("")).join("")}`,
+  tube: `<path d="M20,70 C20,20 140,20 140,50 C140,80 50,80 50,50 C50,30 110,30 110,50" stroke="#111" stroke-width="7" fill="none"/><rect x="104" y="44" width="14" height="14" rx="2" fill="#1d4ed8"/><text x="80" y="96" font-size="9" text-anchor="middle" fill="#52514e">¼″ tube + slip-lock fitting</text>`,
+  filter: `<rect x="62" y="18" width="36" height="56" rx="6" fill="#dbeafe" stroke="#60a5fa" stroke-width="2"/><path d="M68,26 v40 M74,26 v40 M80,26 v40 M86,26 v40 M92,26 v40" stroke="#93c5fd"/><rect x="30" y="40" width="34" height="12" fill="#9ca3af"/><rect x="96" y="40" width="34" height="12" fill="#9ca3af"/>`,
+  usbpump: `<rect x="55" y="28" width="50" height="40" rx="10" fill="#111"/><rect x="74" y="10" width="12" height="20" fill="#93c5fd"/><path d="M80,10 q0,-6 30,-6" stroke="#93c5fd" stroke-width="5" fill="none"/><path d="M55,58 q-20,10 -30,25" stroke="#111" stroke-width="3" fill="none"/><path d="M20,75 h120" stroke="#2a78d6" stroke-width="2" stroke-dasharray="4 3"/>`,
+  minifloat: `<rect x="74" y="8" width="12" height="20" fill="#9ca3af"/><rect x="77" y="28" width="6" height="40" fill="#e5e7eb" stroke="#9ca3af"/><rect x="68" y="46" width="24" height="14" rx="6" fill="#fab219"/><path d="M80,8 q20,-8 40,0" stroke="#111" stroke-width="2" fill="none"/><path d="M30,54 h100" stroke="#2a78d6" stroke-width="2" stroke-dasharray="4 3"/>`,
+  buck: `<rect x="34" y="22" width="92" height="46" rx="4" fill="#1d4ed8"/><circle cx="60" cy="45" r="12" fill="#111"/><rect x="84" y="34" width="20" height="20" fill="#222"/><rect x="108" y="28" width="10" height="8" fill="#3b82f6" stroke="#fff"/><text x="80" y="86" font-size="9" text-anchor="middle" fill="#52514e">IN 12V → OUT 5V (screw = adjust)</text>`,
+};
+document.querySelectorAll("svg[data-pic]").forEach((s) => { s.setAttribute("viewBox", "0 0 160 100"); s.innerHTML = PICS[s.dataset.pic] || ""; });
+
+const shop = (q) => "https://shopee.ph/search?keyword=" + encodeURIComponent(q);
+const PARTS = {
+  partsA: ["Brain & sensors", [
+    ["Orange Pi One (H3)", "", 1, 0, "have it"],
+    ["microSD card 32 GB", "sandisk 32gb microsd a1", 1, 300, "♻"],
+    ["5 V 3 A adapter, 4.0×1.7 mm (for the Pi)", "5v 3a adapter 4.0x1.7", 1, 250, "♻"],
+    ["Heatsink", "orange pi heatsink", 1, 50, "♻"],
+    ["SHT31 temp/humidity board", "SHT31 module", 1, 250, "♻"],
+    ["ADS1115 board", "ADS1115 module", 1, 200, "♻"],
+    ["Capacitive soil sensor v2.0", "capacitive soil moisture sensor v2.0", 1, 75, "♻"],
+    ["Rain sensor board", "rain sensor module FC-37", 1, 60, "♻"],
+    ["Mini float switch", "mini float switch water level", 1, 60],
+    ["4-channel 5 V relay board", "4 channel relay module 5v optocoupler", 1, 180],
+    ["Breadboard 830 + jumper wire set", "breadboard 830 jumper wire set", 1, 180, "♻"],
+  ]],
+  partsB: ["Mini misting & power", [
+    ["12 V mini diaphragm pump 0.5–0.8 MPa", "12v diaphragm pump 0.8mpa misting", 1, 750],
+    ["12 V mini solenoid valve ¼″, normally closed", "12v solenoid valve 1/4 normally closed", 1, 250],
+    ["¼″ misting kit: tube 5 m + nozzles + slip-lock tees + end plug", "misting nozzle 1/4 slip lock kit", 1, 350],
+    ["Inline filter + hose + clamps + Teflon tape", "inline water filter hose clamp", 1, 200],
+    ["5 V USB mini submersible pump (plant)", "usb submersible pump 5v", 1, 100],
+    ["Silicone aquarium tube 4/6 mm (1 m)", "aquarium silicone tube 4mm", 1, 40],
+    ["12 V 5 A adapter + 5 A inline fuse", "12v 5a power adapter", 1, 450],
+    ["12 V → 5 V converter (LM2596)", "LM2596 buck converter", 1, 100, "♻"],
+    ["18 + 22 AWG wire, Wago, 10 kΩ, 1N4007 ×3", "18awg wire red black", 1, 250, "♻"],
+    ["Bucket 10–20 L, plastic tray, plant pot, plywood, glue", "", 1, 450],
+  ]],
+};
+const peso = (n) => "₱" + n.toLocaleString("en-PH");
+const totals = {};
+for (const [id, [title, rows]] of Object.entries(PARTS)) {
+  let sum = 0;
+  const body = rows.map(([name, q, qty, each, note]) => {
+    const t = qty * each; sum += t;
+    const label = q ? `<a href="${shop(q)}" target="_blank" rel="noopener">${name}</a>` : name;
+    return `<tr><td>${label}${note ? ` <span class="tag">${note}</span>` : ""}</td><td class="num">${qty}</td><td class="num">${t ? peso(t) : "—"}</td></tr>`;
+  }).join("");
+  totals[id] = sum;
+  document.getElementById(id).innerHTML = `<tr><th>${title}</th><th class="num">Qty</th><th class="num">₱</th></tr>${body}<tr class="total"><td>Subtotal</td><td></td><td class="num">${peso(sum)}</td></tr>`;
+}
+const grand = totals.partsA + totals.partsB;
+const reused = Object.values(PARTS).flatMap(([, r]) => r).filter((r) => r[4] === "♻").reduce((a, r) => a + r[2] * r[3], 0);
+document.getElementById("partsTotal").innerHTML = `<tr><th>Prototype total</th><th class="num">₱</th></tr>
+  <tr class="total"><td>Everything</td><td class="num">${peso(grand)}</td></tr>
+  <tr><td>…of which reused later in the real build ♻</td><td class="num">${peso(reused)}</td></tr>
+  <tr><td><b>Extra cost of trying it first</b></td><td class="num"><b>${peso(grand - reused)}</b></td></tr>`;
+
+const slides = [...document.querySelectorAll(".slide")];
+let cur = Math.min(slides.length - 1, Math.max(0, (parseInt(location.hash.slice(1)) || 1) - 1));
+function show(i) {
+  cur = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, k) => s.classList.toggle("active", k === cur));
+  document.getElementById("count").textContent = `${cur + 1} / ${slides.length}`;
+  document.getElementById("bar").style.width = ((cur + 1) / slides.length * 100) + "%";
+  history.replaceState(null, "", "#" + (cur + 1));
+}
+function fit() { document.getElementById("deck").style.transform = `scale(${Math.min(innerWidth / 1280, innerHeight / 720) * 0.98})`; }
+addEventListener("resize", fit);
+addEventListener("keydown", (e) => {
+  if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  if (e.key === "Home") show(0);
+  if (e.key === "End") show(slides.length - 1);
+  if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+});
+document.getElementById("prev").onclick = () => show(cur - 1);
+document.getElementById("next").onclick = () => show(cur + 1);
+fit(); show(cur);
+</script>
+</body>
+</html>
