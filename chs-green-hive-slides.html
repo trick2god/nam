@@ -75,6 +75,47 @@
     .slide { display: block !important; position: relative; width: 1280px; height: 720px; page-break-after: always; border-radius: 0; }
     #nav, #bar, #help { display: none; }
   }
+
+  /* ---------- phone / small-screen layout ---------- */
+  @media screen and (max-width: 900px), screen and (orientation: portrait) and (max-width: 1100px) {
+    html, body { height: auto; background: var(--bg); }
+    #stage { position: static; display: block; overflow: visible; }
+    .deck { width: auto; height: auto; transform: none !important; }
+    .slide { position: relative; inset: auto; padding: 20px 16px 84px; border-radius: 0; min-height: 100vh; overflow: visible; }
+    .slide h1 { font-size: 30px !important; margin-top: 12px !important; line-height: 1.15; }
+    .slide h2 { font-size: 22px; line-height: 1.2; }
+    .title h1 { font-size: 34px !important; margin-top: 28px !important; }
+    .sub, .title .sub { font-size: 15px !important; }
+    .title .sub br { display: none; }
+    .slide p, .slide li { font-size: 15px; }
+    .card p, .card li { font-size: 14px; }
+    .kicker { font-size: 11px; }
+    .grid, .g2, .g3, .g4, .g5 { grid-template-columns: 1fr !important; max-width: none !important; margin-top: 14px !important; }
+    .glass div[style*="font-size:30px"], .glass div[style*="font-size:34px"] { font-size: 24px !important; }
+    html, body { overflow-x: hidden; }
+    .deck, .slide { max-width: 100vw; }
+    .grid > *, .slide > * { min-width: 0; max-width: 100%; }
+    .scrollx { max-width: calc(100vw - 0px); }
+    .slide svg { height: auto !important; }
+    .slide svg.pic { height: 96px !important; }
+    .slide svg.pic.big { height: 130px !important; }
+    .scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 8px -16px; padding: 0 16px; }
+    .scrollx > svg { min-width: 720px; display: block; }
+    .scrollx::before { content: "← swipe the diagram →"; display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; font-size: 13px; }
+    th, td { padding: 5px 6px; }
+    pre { font-size: 12px; overflow-x: auto; white-space: pre; }
+    .callout { font-size: 14px !important; }
+    .badge { width: 40px; height: 40px; font-size: 20px; margin-right: 10px; }
+    .foot { position: static; margin-top: 18px; }
+    img { max-width: 100%; height: auto; }
+    #help { display: none; }
+    #nav { left: 0; right: 0; bottom: 0; justify-content: space-between; align-items: center; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: rgba(32,32,31,.94); }
+    #nav button { padding: 10px 18px; font-size: 15px; }
+    #count { order: 2; margin: 0; }
+    #prev { order: 1; } #next { order: 3; }
+    #bar { bottom: auto; top: 0; }
+  }
 </style>
 </head>
 <body>
@@ -924,8 +965,33 @@ function show(i) {
   document.getElementById("count").textContent = `${cur + 1} / ${slides.length}`;
   document.getElementById("bar").style.width = ((cur + 1) / slides.length * 100) + "%";
   history.replaceState(null, "", "#" + (cur + 1));
+  if (MOBILE.matches) scrollTo(0, 0);
 }
-function fit() { document.getElementById("deck").style.transform = `scale(${Math.min(innerWidth / 1280, innerHeight / 720) * 0.98})`; }
+function fit() { const d = document.getElementById("deck"); d.style.transform = MOBILE.matches ? "none" : `scale(${Math.min(innerWidth / 1280, innerHeight / 720) * 0.98})`; }
+
+// ---------- phone layout helpers ----------
+const MOBILE = matchMedia("screen and (max-width: 900px), screen and (orientation: portrait) and (max-width: 1100px)");
+document.querySelectorAll(".slide svg:not(.pic)").forEach((svg) => {
+  const vb = (svg.getAttribute("viewBox") || "").split(/\s+/).map(Number);
+  if (vb.length === 4 && vb[2] >= 500) {          // only the wide diagrams scroll sideways
+    const wrap = document.createElement("div");
+    wrap.className = "scrollx";
+    svg.parentNode.insertBefore(wrap, svg);
+    wrap.appendChild(svg);
+  }
+});
+let touchX = null, touchY = null, touchOk = true;
+addEventListener("touchstart", (e) => {
+  const t = e.touches[0]; touchX = t.clientX; touchY = t.clientY;
+  touchOk = !e.target.closest(".scrollx, table, pre");   // don't steal sideways scrolling
+}, { passive: true });
+addEventListener("touchend", (e) => {
+  if (touchX === null || !touchOk) return;
+  const t = e.changedTouches[0], dx = t.clientX - touchX, dy = t.clientY - touchY;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) show(cur + (dx < 0 ? 1 : -1));
+  touchX = null;
+}, { passive: true });
+MOBILE.addEventListener("change", () => fit());
 addEventListener("resize", fit);
 addEventListener("keydown", (e) => {
   if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); show(cur + 1); }
