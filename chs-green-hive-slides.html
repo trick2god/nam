@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build CHS GreenHive: Student Build Guide</title>
+<style>
+  :root {
+    --green: #0b7a3e; --green-2: #12a150; --green-soft: #e6f4ec;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781; --line: #e1e0d9;
+    --bg: #f9f9f7; --card: #ffffff;
+    --blue: #2a78d6; --orange: #eb6834; --red: #d03b3b; --amber: #fab219;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #20201f; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; }
+  .deck { width: 1280px; height: 720px; position: relative; transform-origin: center; }
+  .slide { position: absolute; inset: 0; background: var(--bg); padding: 44px 60px 54px; display: none; overflow: hidden; border-radius: 6px; }
+  .slide.active { display: block; }
+  .slide h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .slide h2 { font-size: 32px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 18px; margin: 0 0 18px; }
+  .slide p, .slide li { font-size: 17px; line-height: 1.45; }
+  .slide ul, .slide ol { margin: 6px 0; padding-left: 22px; }
+  .slide li { margin: 4px 0; }
+  .kicker { color: var(--green); font-weight: 800; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+  .foot { position: absolute; left: 60px; right: 60px; bottom: 18px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); } .g5 { grid-template-columns: repeat(5, 1fr); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 15px; }
+  .card h3 { margin: 4px 0 4px; font-size: 17px; }
+  .card p, .card li { font-size: 14px; margin: 2px 0; color: var(--ink-2); line-height: 1.4; }
+  .price { font-weight: 800; color: var(--ink) !important; }
+  .pic { width: 100%; height: 88px; display: block; }
+  .pic.big { height: 150px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; background: var(--green-soft); color: var(--green); }
+  .tag.warn { background: #fff4dc; color: #8a5a00; }
+  .tag.red { background: #fde8e8; color: #9b2222; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 800; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.total td { font-weight: 800; border-top: 2px solid var(--ink); border-bottom: 0; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .callout { background: #fff4dc; border-left: 5px solid var(--amber); padding: 10px 14px; border-radius: 8px; font-size: 15px; }
+  .callout.red { background: #fde8e8; border-color: var(--red); }
+  .callout.green { background: var(--green-soft); border-color: var(--green); }
+  .callout.blue { background: #e8f1fc; border-color: var(--blue); }
+  .step { display: flex; gap: 12px; align-items: flex-start; margin: 9px 0; }
+  .step b.n { flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-size: 14px; }
+  .step div { font-size: 16px; line-height: 1.4; }
+  code, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .9em; background: #efeee9; padding: 1px 5px; border-radius: 4px; }
+  pre { background: #1a1a19; color: #e8e8e3; border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin: 6px 0; white-space: pre-wrap; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  pre .c { color: #8fd19e; }
+  .check li { list-style: none; margin-left: -22px; }
+  .check li::before { content: "☐  "; font-weight: 700; color: var(--green); }
+  .badge { display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px; border-radius: 14px; background: var(--green); color: #fff; font-size: 26px; font-weight: 800; float: left; margin: 2px 16px 0 0; }
+  .title { background: linear-gradient(135deg, #0b7a3e 0%, #0d5c33 60%, #083d22 100%); color: #fff; }
+  .title h1 { font-size: 66px; margin-top: 70px; }
+  .title .sub { color: rgba(255,255,255,.88); font-size: 22px; }
+  .title .foot { color: rgba(255,255,255,.6); }
+  .glass { background: rgba(255,255,255,.12); border-radius: 14px; padding: 16px 18px; }
+  #bar { position: fixed; left: 0; bottom: 0; height: 4px; background: var(--green-2); transition: width .2s; z-index: 5; }
+  #nav { position: fixed; right: 14px; bottom: 12px; display: flex; gap: 6px; z-index: 6; }
+  #nav button { border: 0; background: rgba(255,255,255,.9); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  #count { color: #ddd; font-size: 13px; align-self: center; margin-right: 6px; }
+  #help { position: fixed; left: 14px; top: 8px; color: #aaa; font-size: 12px; z-index: 6; }
+  @media screen { .foot span:last-child { visibility: hidden; } }
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    html, body { background: #fff; }
+    #stage { position: static; display: block; }
+    .deck { transform: none !important; width: auto; height: auto; }
+    .slide { display: block !important; position: relative; width: 1280px; height: 720px; page-break-after: always; border-radius: 0; }
+    #nav, #bar, #help { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide title">
+  <div class="kicker" style="color:#bfe8cf">Commonwealth High School · Student build guide</div>
+  <h1>Let's build CHS GreenHive 🌱💧</h1>
+  <p class="sub">A smart misting system that cools our walkways when it gets too hot,<br>plus a garden that waters itself. Built by students, for students.</p>
+  <div class="grid g3" style="margin-top:44px;max-width:980px">
+    <div class="glass"><div style="font-size:30px;font-weight:800">🧠 1 computer</div><div style="opacity:.85">Orange Pi One makes all the decisions</div></div>
+    <div class="glass"><div style="font-size:30px;font-weight:800">💨 2 mist zones</div><div style="opacity:.85">main walkway + gathering area</div></div>
+    <div class="glass"><div style="font-size:30px;font-weight:800">🌱 2 gardens</div><div style="opacity:.85">drip watering only when the soil is dry</div></div>
+  </div>
+  <div class="foot"><span>Press → to start · about 6 weeks of building · ≈ ₱12,000 in parts</span><span>1</span></div>
+</section>
+
+<!-- 2 SAFETY -->
+<section class="slide">
+  <div class="kicker">Read this first</div>
+  <h2>⚠ Safety rules: we mix water + electricity</h2>
+  <p class="sub">Follow these every single time. A teacher or adult is always present when you build.</p>
+  <div class="grid g3">
+    <div class="card" style="border-top:6px solid var(--red)"><h3>🔌 220 V = adults only</h3><p>Only an <b>adult or the school electrician</b> plugs in, unplugs, or touches anything connected to the wall outlet. Students work only on the <b>12 V and 5 V</b> side.</p></div>
+    <div class="card" style="border-top:6px solid var(--red)"><h3>⛔ Unplug before touching</h3><p>Always <b>unplug the power</b> before you change any wire. Never work on a circuit that's on.</p></div>
+    <div class="card" style="border-top:6px solid var(--red)"><h3>💧 Water never touches 220 V</h3><p>Adapters and outlets stay <b>indoors or in a closed box</b>, away from mist and pipes. Use an outlet with an <b>RCD</b> (shock protection).</p></div>
+    <div class="card" style="border-top:6px solid var(--amber)"><h3>🥽 Eyes &amp; hands</h3><p>Safety glasses when cutting pipe, drilling, or testing the pump (100 psi can spray hard). Gloves for PVC cement.</p></div>
+    <div class="card" style="border-top:6px solid var(--amber)"><h3>🪜 Working high</h3><p>Nozzles go 2.5–3 m up. Use a proper ladder with <b>someone holding it</b>. No standing on chairs.</p></div>
+    <div class="card" style="border-top:6px solid var(--amber)"><h3>🔥 Hot tools</h3><p>A soldering iron or heat gun burns at 300°C+. Put it back in its stand, and unplug it when you're done.</p></div>
+  </div>
+  <div class="callout red" style="margin-top:14px"><b>Golden rule:</b> if something smells burning, sparks, or gets hot → <b>unplug it and call the teacher</b>. Don't try to fix it while it's on.</div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>2</span></div>
+</section>
+
+<!-- 3 OVERVIEW -->
+<section class="slide">
+  <div class="kicker">The big picture</div>
+  <h2>How it works in 4 steps</h2>
+  <p class="sub">Think of it like a person: eyes 👀 → brain 🧠 → hands 🖐 → a mouth to tell us what it's doing 📱</p>
+  <svg viewBox="0 0 1160 400" style="width:100%;height:430px">
+    <defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10z" fill="#52514e"/></marker></defs>
+    <g font-size="15" font-family="system-ui">
+      <rect x="10" y="40" width="240" height="300" rx="16" fill="#fff" stroke="#e1e0d9"/>
+      <text x="130" y="74" text-anchor="middle" font-weight="800" font-size="19">👀 1 · SENSE</text>
+      <text x="28" y="114">🌡 How hot &amp; humid is it?</text>
+      <text x="28" y="152">🌱 Is the soil dry?</text>
+      <text x="28" y="190">🌧 Is it raining?</text>
+      <text x="28" y="228">🪣 Is there water in the tank?</text>
+      <text x="28" y="266">🕑 Is it class time?</text>
+      <text x="28" y="318" fill="#898781" font-size="13">= sensors</text>
+      <rect x="325" y="90" width="230" height="200" rx="16" fill="#0b7a3e"/>
+      <text x="440" y="126" text-anchor="middle" font-weight="800" font-size="19" fill="#fff">🧠 2 · DECIDE</text>
+      <text x="440" y="162" text-anchor="middle" fill="#fff">Orange Pi One</text>
+      <text x="440" y="188" text-anchor="middle" fill="#cfe9da" font-size="13">a tiny computer running</text>
+      <text x="440" y="206" text-anchor="middle" fill="#cfe9da" font-size="13">our Python program</text>
+      <text x="440" y="240" text-anchor="middle" fill="#fff" font-size="14">checks the rules</text>
+      <text x="440" y="260" text-anchor="middle" fill="#fff" font-size="14">every 2 seconds</text>
+      <rect x="630" y="40" width="250" height="300" rx="16" fill="#fff" stroke="#e1e0d9"/>
+      <text x="755" y="74" text-anchor="middle" font-weight="800" font-size="19">🖐 3 · ACT</text>
+      <text x="648" y="114">🔌 Relays (electric switches)</text>
+      <text x="648" y="152">⚙ Pump (pushes water hard)</text>
+      <text x="648" y="190">🚰 Valves (electric taps)</text>
+      <text x="648" y="228">💨 Mist nozzles → walkway</text>
+      <text x="648" y="266">💧 Drip hose → garden</text>
+      <text x="648" y="318" fill="#898781" font-size="13">= switches, pump, pipes</text>
+      <rect x="960" y="90" width="190" height="200" rx="16" fill="#fff" stroke="#e1e0d9"/>
+      <text x="1055" y="126" text-anchor="middle" font-weight="800" font-size="19">📱 4 · SHOW</text>
+      <text x="1055" y="162" text-anchor="middle">Website dashboard</text>
+      <text x="1055" y="192" text-anchor="middle" font-size="13" fill="#52514e">heat map of campus</text>
+      <text x="1055" y="212" text-anchor="middle" font-size="13" fill="#52514e">what's ON and why</text>
+      <text x="1055" y="232" text-anchor="middle" font-size="13" fill="#52514e">water used today</text>
+      <text x="1055" y="252" text-anchor="middle" font-size="13" fill="#52514e">STOP button</text>
+      <line x1="252" y1="190" x2="319" y2="190" stroke="#52514e" stroke-width="3" marker-end="url(#ar)"/>
+      <line x1="557" y1="190" x2="624" y2="190" stroke="#52514e" stroke-width="3" marker-end="url(#ar)"/>
+      <line x1="882" y1="190" x2="954" y2="190" stroke="#52514e" stroke-width="3" marker-end="url(#ar)"/>
+      <text x="580" y="385" text-anchor="middle" fill="#52514e">Why mist cools: tiny water drops evaporate, and evaporation pulls heat out of the air (like sweat on your skin).</text>
+    </g>
+  </svg>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>3</span></div>
+</section>
+
+<!-- MISTING EXPLAINED -->
+<section class="slide">
+  <div class="kicker">What we mean by "misting"</div>
+  <h2>💦 Water only, through very tiny holes: a mini shower that doesn't drip</h2>
+  <div class="grid g2" style="margin-top:14px;align-items:center">
+    <svg viewBox="0 0 560 330" style="width:100%">
+      <g font-family="system-ui" font-size="13">
+        <rect x="10" y="40" width="540" height="16" rx="8" fill="#111"/>
+        <text x="20" y="30" fill="#52514e">3/8″ tube full of water, pushed by the pump at ~100 psi →</text>
+        <g id="spray"></g>
+        <rect x="10" y="300" width="540" height="10" fill="#c3c2b7"/><text x="280" y="296" text-anchor="middle" fill="#52514e">floor stays dry: the tiny drops evaporate before they land</text>
+      </g>
+    </svg>
+    <div>
+      <ul>
+        <li>A <b>tube</b> runs along the walkway roof, with a <b>nozzle every 40–60 cm</b> (about 10 per walkway)</li>
+        <li>Each nozzle has a <b>very tiny hole</b>: 0.3 mm, thinner than a pencil line</li>
+        <li>The <b>pump</b> pushes the water hard (about 100 psi; a faucet is about 30), so it bursts out as <b>very fine drops</b>, like a mini shower or a spray bottle</li>
+        <li>The drops are so small they <b>evaporate in the air</b>, and evaporation pulls heat out of the air. That's the cooling</li>
+        <li><b>Just water.</b> No chemicals, no electricity at the nozzles</li>
+      </ul>
+      <div class="callout blue" style="margin-top:10px"><b>Big drops, or a wet floor?</b> The pressure is too low or a nozzle is worn. Clean the filter, check for leaks, or replace the nozzle.</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span></span></div>
+</section>
+
+<!-- 4 RULES -->
+<section class="slide">
+  <div class="kicker">How the brain thinks</div>
+  <h2>The rules, in plain words</h2>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h3>💨 Misting</h3>
+      <p style="font-size:16px">Mist <b>ONLY IF</b> all of these are true:</p>
+      <ul style="font-size:16px">
+        <li>✅ It's a school day, 7:00 AM – 5:00 PM</li>
+        <li>✅ The heat index is <b>33°C or more</b> (PAGASA "Extreme Caution")</li>
+        <li>✅ It is NOT raining</li>
+        <li>✅ The tank has water</li>
+        <li>✅ The air isn't already super humid (under 80%)</li>
+      </ul>
+      <p style="font-size:15px">Then it sprays in <b>pulses</b>: 1 min ON, 2 min OFF. At 42°C or more ("Danger"): 1.5 min ON, 1 min OFF.<br>Pulses = the floor stays dry and we use less water.</p>
+    </div>
+    <div class="card"><h3>🌱 Garden watering</h3>
+      <p style="font-size:16px">Water the garden <b>ONLY IF</b>:</p>
+      <ul style="font-size:16px">
+        <li>✅ The soil is dry (<b>under 35%</b>)</li>
+        <li>✅ It's a cool time: 5–8 AM or 4–6:30 PM (less water evaporates)</li>
+        <li>✅ It is NOT raining, and the tank has water</li>
+      </ul>
+      <p style="font-size:15px">It waters for up to 20 min, waits 45 min for the water to soak in, and repeats until the soil reaches 60%.<br>If the soil is <b>really</b> dry (under 20%), it waters right away.</p>
+    </div>
+  </div>
+  <div class="callout green" style="margin-top:12px"><b>When in doubt → water OFF.</b> A broken sensor, an empty tank, or a lost connection all turn everything OFF. That's called <b>fail-safe</b>.</div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>4</span></div>
+</section>
+
+<!-- 5 BRAIN -->
+<section class="slide">
+  <div class="kicker">Meet the parts · the brain</div>
+  <h2>Orange Pi One: our tiny computer</h2>
+  <div class="grid g2" style="align-items:start;margin-top:10px">
+    <div class="card"><svg class="pic big" data-pic="orangepi"></svg>
+      <ul>
+        <li>A full Linux computer the size of a credit card</li>
+        <li>Runs our program <code>chs-green-hive.py</code> all day, every day</li>
+        <li>The <b>40 metal pins</b> (the "header") connect to sensors and relays</li>
+        <li>Plugs into the school network with an <b>Ethernet cable</b></li>
+      </ul>
+    </div>
+    <div>
+      <div class="callout red"><b>3 things that can wreck it:</b><br>
+        1. Power through the wrong plug: it uses a round <b>4.0 × 1.7 mm barrel</b>, 5 V. Not USB.<br>
+        2. Putting <b>5 V or 12 V on a pin</b>: the pins only handle <b>3.3 V</b>.<br>
+        3. Overheating: stick on the <b>heatsink</b> and keep the box in the shade.</div>
+      <h3 style="margin:16px 0 6px">It's missing a few things, so we add them:</h3>
+      <table>
+        <tr><th>It has no…</th><th>So we add…</th></tr>
+        <tr><td>Wi-Fi</td><td>an Ethernet cable to the school router</td></tr>
+        <tr><td>a way to read soil sensors</td><td><b>ADS1115</b> board (reads voltages)</td></tr>
+        <tr><td>a clock battery</td><td><b>DS3231</b> clock board (remembers the time)</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>5</span></div>
+</section>
+
+<!-- 6 SENSORS -->
+<section class="slide">
+  <div class="kicker">Meet the parts · the eyes</div>
+  <h2>Sensors: what each one tells the brain</h2>
+  <div class="grid g3" style="margin-top:10px">
+    <div class="card"><svg class="pic" data-pic="sht31"></svg><h3>🌡 SHT31: temp + humidity</h3><p>Measures the air. The program turns it into the <b>heat index</b> ("feels like" temperature). Put it in the shade!</p></div>
+    <div class="card"><svg class="pic" data-pic="soil"></svg><h3>🌱 Soil sensor ×2 (capacitive)</h3><p>Push it into the soil up to the line. Wet soil gives a lower voltage. Get the <b>black flat</b> type, not the metal fork (it rusts).</p></div>
+    <div class="card"><svg class="pic" data-pic="ads"></svg><h3>🔢 ADS1115</h3><p>A translator: turns the soil sensor's voltage into a number the Orange Pi understands.</p></div>
+    <div class="card"><svg class="pic" data-pic="rain"></svg><h3>🌧 Rain sensor</h3><p>When drops land on the plate, the little board says "rain!". Mount it facing the sky.</p></div>
+    <div class="card"><svg class="pic" data-pic="float"></svg><h3>🪣 Float switch</h3><p>A floating ring inside the tank. When the water gets too low, it tells the brain to stop the pump.</p></div>
+    <div class="card"><svg class="pic" data-pic="rtc"></svg><h3>🕑 DS3231 clock</h3><p>A coin battery keeps the time, so "7 AM" is still correct after a power cut.</p></div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>6</span></div>
+</section>
+
+<!-- 7 RELAY -->
+<section class="slide">
+  <div class="kicker">Meet the parts · the switches</div>
+  <h2>Relay board: a tiny signal flips a big switch</h2>
+  <p class="sub">The Orange Pi's pins are too weak to run a pump. A relay is like a light switch that the computer can "press".</p>
+  <div class="grid g2" style="align-items:center">
+    <div class="card"><svg class="pic big" data-pic="relay"></svg><h3>8-channel relay board</h3><p>8 switches: 1 pump + 4 valves + 3 spare. You'll hear a <b>"click"</b> when one turns on, and a small LED lights up.</p></div>
+    <div>
+      <svg viewBox="0 0 560 230" style="width:100%">
+        <g font-family="system-ui" font-size="14">
+          <rect x="10" y="80" width="120" height="70" rx="10" fill="#0b7a3e"/><text x="70" y="112" fill="#fff" text-anchor="middle" font-weight="700">Orange Pi</text><text x="70" y="132" fill="#cfe9da" text-anchor="middle" font-size="12">"turn on R2!"</text>
+          <line x1="130" y1="115" x2="200" y2="115" stroke="#e6b800" stroke-width="3"/>
+          <rect x="200" y="60" width="150" height="110" rx="10" fill="#1f5fbf"/><text x="275" y="94" fill="#fff" text-anchor="middle" font-weight="700">Relay R2</text><text x="275" y="116" fill="#dbe8fb" text-anchor="middle" font-size="12">*click*</text><text x="275" y="150" fill="#fff" text-anchor="middle" font-size="12">COM ─── NO</text>
+          <line x1="350" y1="145" x2="420" y2="145" stroke="#d03b3b" stroke-width="3"/>
+          <rect x="420" y="110" width="130" height="70" rx="10" fill="#333"/><text x="485" y="140" fill="#fff" text-anchor="middle" font-weight="700">Valve opens</text><text x="485" y="160" fill="#ccc" text-anchor="middle" font-size="12">mist sprays!</text>
+          <text x="275" y="30" text-anchor="middle" fill="#d03b3b" font-weight="700">+12 V comes in at COM</text>
+          <line x1="275" y1="38" x2="275" y2="58" stroke="#d03b3b" stroke-width="3"/>
+          <text x="10" y="210" fill="#52514e">The 3.3 V computer side and the 12 V pump side never touch.</text>
+        </g>
+      </svg>
+      <div class="callout blue"><b>3 screw holes on each relay:</b> <b>COM</b> = power in · <b>NO</b> ("normally open") = power out to the valve ✅ use this · <b>NC</b> = leave empty.</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>7</span></div>
+</section>
+
+<!-- 8 WATER PARTS -->
+<section class="slide">
+  <div class="kicker">Meet the parts · the water side</div>
+  <h2>Pump, valves, nozzles &amp; drippers</h2>
+  <div class="grid g5" style="margin-top:12px">
+    <div class="card"><svg class="pic" data-pic="pump"></svg><h3>⚙ 12 V pump</h3><p>Pushes water at about 100 psi (much stronger than a faucet). Strong pressure = fine mist.</p></div>
+    <div class="card"><svg class="pic" data-pic="valve"></svg><h3>🚰 Valve ×4</h3><p>An electric tap. 12 V = open, no power = closed ("normally-closed").</p></div>
+    <div class="card"><svg class="pic" data-pic="nozzle"></svg><h3>💨 Mist nozzle</h3><p>A super tiny hole (0.3 mm). Pressurised water bursts out as a very fine spray, like a mini shower that doesn't drip. About 10 per walkway.</p></div>
+    <div class="card"><svg class="pic" data-pic="drip"></svg><h3>💧 Drip hose</h3><p>A black hose with drippers at each plant. Water goes straight to the roots.</p></div>
+    <div class="card"><svg class="pic" data-pic="filter"></svg><h3>🧽 Filter</h3><p>Catches sand and dirt before it can clog the tiny nozzles.</p></div>
+  </div>
+  <div class="callout red" style="margin-top:14px"><b>Buying tip for the 2 garden valves:</b> cheap valves need pressure to open. Gravity from the tank isn't enough, so buy valves labelled <b>"zero pressure"</b> or <b>"direct acting"</b> for the garden. The 2 mist valves are after the pump, so the normal cheap ones work there.</div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>8</span></div>
+</section>
+
+<!-- 9 SHOP 1 -->
+<section class="slide">
+  <div class="kicker">Shopping list · 1 / 2</div>
+  <h2>🛒 Electronics &amp; power</h2>
+  <p class="sub">Estimated prices (Nov 2026). Click a name to search it on Shopee. Compare 2–3 sellers and check the reviews.</p>
+  <div class="grid g2" style="align-items:start">
+    <table id="shopA"></table>
+    <table id="shopB"></table>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>9</span></div>
+</section>
+
+<!-- 10 SHOP 2 -->
+<section class="slide">
+  <div class="kicker">Shopping list · 2 / 2</div>
+  <h2>🛒 Water, wires &amp; box</h2>
+  <div class="grid g2" style="align-items:start;margin-top:10px">
+    <table id="shopC"></table>
+    <div><table id="shopD"></table><table id="shopTotal" style="margin-top:10px"></table></div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>10</span></div>
+</section>
+
+<!-- 11 TOOLS -->
+<section class="slide">
+  <div class="kicker">Tools</div>
+  <h2>🧰 Tools you need (borrow what you can)</h2>
+  <div class="grid g2" style="align-items:start;margin-top:10px">
+    <table id="tools"></table>
+    <div>
+      <div class="card"><h3>👥 Split into 3 teams</h3>
+        <ul>
+          <li><b>Team Brain 🧠</b>: Orange Pi setup, software, dashboard</li>
+          <li><b>Team Sparks ⚡</b>: sensors, relays, 12 V wiring (with the teacher)</li>
+          <li><b>Team Water 💧</b>: pipes, pump, nozzles, drip lines (with maintenance staff)</li>
+        </ul>
+        <p>Everyone meets at the end of each step to test together.</p>
+      </div>
+      <div class="callout" style="margin-top:12px"><b>Learn the multimeter first.</b> It's your best friend: it tells you if a wire has 12 V, if a fuse is blown, or if a wire is broken (the "beep" test).</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>11</span></div>
+</section>
+
+<!-- 12 STEP 1 -->
+<section class="slide">
+  <div class="kicker">Build · step 1 of 8 · Team Brain 🧠</div>
+  <h2><span class="badge">1</span>Set up the Orange Pi</h2>
+  <div class="grid g2" style="margin-top:14px;clear:both">
+    <div>
+      <div class="step"><b class="n">a</b><div>On a laptop, download <b>Armbian for Orange Pi One</b> from <a href="https://www.armbian.com/orange-pi-one/">armbian.com/orange-pi-one</a> (pick the Debian Bookworm one).</div></div>
+      <div class="step"><b class="n">b</b><div>Write it to the microSD card with <a href="https://etcher.balena.io/">balenaEtcher</a>. Put the card in the Orange Pi.</div></div>
+      <div class="step"><b class="n">c</b><div>Stick the heatsink on the big chip. Connect the Ethernet cable, then the 5 V barrel plug. The red LED turns on.</div></div>
+      <div class="step"><b class="n">d</b><div>Find its IP address on the router page (ask IT), then connect from the laptop: <code>ssh root@&lt;ip&gt;</code> (first password: <code>1234</code>, then make your own).</div></div>
+      <div class="step"><b class="n">e</b><div>Copy our project folder to the Pi, into <code>/opt/greenhive</code> (use <a href="https://winscp.net/">WinSCP</a>: drag and drop).</div></div>
+    </div>
+    <div>
+      <p style="margin:0 0 4px"><b>Then type these commands on the Pi:</b></p>
+<pre><span class="c"># set the Philippine time zone</span>
+sudo timedatectl set-timezone Asia/Manila
+
+<span class="c"># turn on the sensor bus (I2C)</span>
+sudo armbian-config
+<span class="c">#  → System → Hardware → tick "i2c0" → Save → Reboot</span>
+
+<span class="c"># install the checker tool + Python</span>
+sudo apt update
+sudo apt install -y i2c-tools python3</pre>
+      <div class="callout green">✅ <b>Done when:</b> <code>ls /dev/i2c-*</code> shows <code>/dev/i2c-0</code>.</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>12</span></div>
+</section>
+
+<!-- 13 STEP 2 -->
+<section class="slide">
+  <div class="kicker">Build · step 2 of 8 · Team Sparks ⚡ · power OFF while wiring</div>
+  <h2><span class="badge">2</span>Wire the sensors</h2>
+  <div class="grid g2" style="margin-top:14px;clear:both;grid-template-columns:1.1fr 1fr">
+    <div>
+      <p style="margin-top:0"><b>The 3 small boards (SHT31, ADS1115, DS3231) share the same 4 wires.</b> This is called the <b>I2C bus</b>. Connect each board to the same pins:</p>
+      <table>
+        <tr><th>Board pin</th><th>→ Orange Pi pin</th><th>Wire color</th></tr>
+        <tr><td>VIN / VCC / VDD</td><td><b>pin 1</b> (3.3 V)</td><td><span class="tag red">red</span></td></tr>
+        <tr><td>GND</td><td><b>pin 6</b> (ground)</td><td><span class="tag" style="background:#ddd;color:#000">black</span></td></tr>
+        <tr><td>SDA</td><td><b>pin 3</b></td><td><span class="tag">green</span></td></tr>
+        <tr><td>SCL</td><td><b>pin 5</b></td><td><span class="tag" style="background:#eee;color:#333">white</span></td></tr>
+      </table>
+      <p><b>Soil sensors:</b> red → 3.3 V · black → GND · yellow (signal) → <b>ADS1115 A0</b> (Garden A) and <b>A1</b> (Garden B).</p>
+      <p><b>Rain sensor board:</b> VCC → 3.3 V · GND → GND · <b>DO → pin 33</b>.</p>
+      <p><b>Float switch:</b> one wire → GND, the other → <b>pin 31</b>, plus a <b>10 kΩ resistor</b> from pin 31 to 3.3 V.</p>
+    </div>
+    <div>
+      <div class="card"><h3>How to find pin 1 on the header</h3><p>Pin 1 has a <b>square pad</b> or a small "1" or triangle printed next to it. Odd numbers (1, 3, 5…) are one row, even numbers (2, 4, 6…) the other. Count carefully: one pin off can kill a sensor.</p></div>
+      <p style="margin:10px 0 4px"><b>Check the boards answer:</b></p>
+<pre>sudo i2cdetect -y 0
+<span class="c"># you should see: 44 (SHT31) 48 (ADS1115) 68 (DS3231)</span></pre>
+      <div class="callout">Use <b>female-female jumper wires</b> on the pins. A tiny dab of hot glue keeps them from wiggling loose.</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>13</span></div>
+</section>
+
+<!-- 14 STEP 3 -->
+<section class="slide">
+  <div class="kicker">Build · step 3 of 8 · Team Sparks ⚡ · power OFF while wiring</div>
+  <h2><span class="badge">3</span>Wire the relay board</h2>
+  <div class="grid g2" style="grid-template-columns:1.25fr 1fr;align-items:start;clear:both;margin-top:8px">
+    <svg viewBox="0 0 660 470" style="width:100%">
+      <g font-family="system-ui" font-size="12">
+        <rect x="10" y="20" width="200" height="430" rx="12" fill="#1f6f3a"/>
+        <text x="110" y="45" fill="#fff" text-anchor="middle" font-weight="700" font-size="14">Orange Pi One pins</text>
+        <g id="wires"></g>
+        <g id="pins"></g>
+        <rect x="440" y="20" width="210" height="250" rx="10" fill="#1f5fbf"/>
+        <text x="545" y="45" fill="#fff" text-anchor="middle" font-weight="700" font-size="14">8-ch relay board</text>
+        <g fill="#fff" font-size="12">
+          <text x="455" y="75">VCC</text><text x="455" y="97">GND</text>
+          <text x="455" y="122">IN1 → R1 pump</text><text x="455" y="144">IN2 → R2 walkway mist</text><text x="455" y="166">IN3 → R3 gathering mist</text>
+          <text x="455" y="188">IN4 → R4 garden A</text><text x="455" y="210">IN5 → R5 garden B</text>
+          <text x="455" y="245">JD-VCC ← 5 V converter</text><text x="455" y="262">(take the jumper off)</text>
+        </g>
+        <rect x="440" y="290" width="210" height="160" rx="10" fill="#6b3fa0"/>
+        <text x="545" y="314" fill="#fff" text-anchor="middle" font-weight="700" font-size="14">sensor boards (step 2)</text>
+        <g fill="#fff"><text x="455" y="340">SHT31 · ADS1115 · DS3231</text><text x="455" y="362">power ← 3.3 V</text><text x="455" y="384">GND ← GND</text><text x="455" y="406">SDA ← pin 3</text><text x="455" y="428">SCL ← pin 5</text></g>
+      </g>
+    </svg>
+    <div>
+      <table>
+        <tr><th>Relay board</th><th>→ Orange Pi</th></tr>
+        <tr><td>VCC</td><td>pin 1 (3.3 V) <span class="tag red">red</span></td></tr>
+        <tr><td>GND</td><td>pin 6 (GND) <span class="tag" style="background:#ddd;color:#000">black</span></td></tr>
+        <tr><td>IN1 (pump)</td><td>pin 7 <span class="tag warn">yellow</span></td></tr>
+        <tr><td>IN2 (walkway mist)</td><td>pin 11</td></tr>
+        <tr><td>IN3 (gathering mist)</td><td>pin 13</td></tr>
+        <tr><td>IN4 (garden A)</td><td>pin 15</td></tr>
+        <tr><td>IN5 (garden B)</td><td>pin 16</td></tr>
+      </table>
+      <div class="callout red" style="font-size:14px;margin-top:10px"><b>Important:</b> the relay coils need 5 V, but the Pi's pins are 3.3 V. So <b>pull off the little "JD-VCC" jumper</b> and feed <b>JD-VCC + its GND</b> from the <b>12 V → 5 V converter</b> (set it to 5.0 V with a multimeter first!).</div>
+      <p style="font-size:13px;color:var(--ink-2)">If the relays don't click reliably, buy a relay board marked "3.3 V trigger".</p>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>14</span></div>
+</section>
+
+<!-- 15 STEP 4 TABLE TEST -->
+<section class="slide">
+  <div class="kicker">Build · step 4 of 8 · everyone · NO water yet</div>
+  <h2><span class="badge">4</span>Table test: make sure the brain works</h2>
+  <div class="grid g2" style="clear:both;margin-top:14px">
+    <div>
+<pre><span class="c"># start the program for real (not simulation)</span>
+cd /opt/greenhive
+sudo python3 chs-green-hive.py --live</pre>
+      <p>On a phone or laptop on the same network, open <code>http://&lt;pi-ip&gt;:8080</code>. The top pill should say <b>● LIVE</b>.</p>
+      <h3 style="margin:10px 0 4px">Test each one ✔</h3>
+      <ul class="check">
+        <li>Press <b>Run 5 min</b> on each zone → its relay <b>clicks</b> and its LED lights up (mist zones also click R1 = pump)</li>
+        <li>Breathe on the SHT31 → the humidity number goes up</li>
+        <li>Unplug the float switch → the dashboard says <b>tank low, locked</b> and everything turns OFF</li>
+        <li>Drip water on the rain plate → <b>"Rain detected"</b>, everything OFF</li>
+        <li>Press <b>EMERGENCY STOP</b> → everything turns OFF at once</li>
+      </ul>
+    </div>
+    <div>
+      <div class="card"><h3>🌱 Calibrate the soil sensors</h3>
+        <p>Every sensor is a bit different, so teach the program what "dry" and "wet" mean:</p>
+        <ol><li>Hold the sensor in the air → note the raw number = <b>dry</b></li><li>Put it in a glass of water (up to the line) → note it = <b>wet</b></li><li>Write both in <code>chs-green-hive-config.json</code>: <code>soil_dry_raw</code> and <code>soil_wet_raw</code></li></ol>
+      </div>
+      <div class="callout green" style="margin-top:12px">✅ <b>Done when</b> every checkbox works. Only then do we add 12 V and water. Fixing problems on a table is 10× easier than on a roof!</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>15</span></div>
+</section>
+
+<!-- 16 STEP 5 12V -->
+<section class="slide">
+  <div class="kicker">Build · step 5 of 8 · Team Sparks ⚡ · with the teacher</div>
+  <h2><span class="badge">5</span>Connect the pump &amp; valves (12 V side)</h2>
+  <svg viewBox="0 0 1150 330" style="width:100%;height:320px;clear:both">
+    <g font-family="system-ui" font-size="13">
+      <rect x="10" y="110" width="150" height="110" rx="10" fill="#c9c9c9" stroke="#898781"/><text x="85" y="150" text-anchor="middle" font-weight="700">12 V 10 A</text><text x="85" y="170" text-anchor="middle">power supply</text><text x="85" y="200" text-anchor="middle" fill="#52514e">V+ / V−</text>
+      <line x1="160" y1="140" x2="240" y2="140" stroke="#d03b3b" stroke-width="4"/>
+      <rect x="240" y="128" width="60" height="24" rx="5" fill="#fab219"/><text x="270" y="145" text-anchor="middle" font-weight="700">10 A fuse</text>
+      <line x1="300" y1="140" x2="380" y2="140" stroke="#d03b3b" stroke-width="4"/>
+      <line x1="380" y1="40" x2="380" y2="270" stroke="#d03b3b" stroke-width="4"/>
+      <text x="390" y="28" fill="#d03b3b" font-weight="700">+12 V (red) → every relay's COM</text>
+      <g id="relayrows"></g>
+      <line x1="160" y1="190" x2="200" y2="190" stroke="#111" stroke-width="4"/><line x1="200" y1="190" x2="200" y2="315" stroke="#111" stroke-width="4"/><line x1="200" y1="315" x2="1060" y2="315" stroke="#111" stroke-width="4"/><line x1="1060" y1="50" x2="1060" y2="315" stroke="#111" stroke-width="4"/>
+      <text x="1070" y="180" fill="#111" font-weight="700">−12 V</text><text x="1070" y="196" fill="#111">(black)</text>
+    </g>
+  </svg>
+  <div class="grid g3">
+    <div class="card"><h3>For each valve / pump</h3><p>Relay <b>COM</b> ← red +12 V · relay <b>NO</b> → the valve's red wire · the valve's black wire → black −12 V.</p></div>
+    <div class="card"><h3>The diode (₱5 lifesaver)</h3><p>Put a <b>1N4007 diode</b> across each valve's 2 wires, <b>silver stripe on the + (red) side</b>. It eats the zap the coil makes when it switches off.</p></div>
+    <div class="card"><h3>Test it (still no water)</h3><p>Plug in the 12 V supply (adult). Press <b>Run 5 min</b> → the valve goes <b>"clunk"</b> and the pump hums for a second. ✅</p></div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>16</span></div>
+</section>
+
+<!-- 17 WIRES -->
+<section class="slide">
+  <div class="kicker">Which wire do I use?</div>
+  <h2>🔌 The right wire for each job</h2>
+  <p class="sub">Thin wires are fine for signals. Wires that carry power over a distance must be <b>thicker</b>, or the valve won't get enough voltage to open.</p>
+  <table>
+    <tr><th>From → to</th><th>Wire to use</th><th>Thickness</th><th>Max length</th><th>Colors</th></tr>
+    <tr><td>Orange Pi pins → relay board / small boards</td><td>Female-female <b>jumper wires</b> (Dupont)</td><td>—</td><td>20 cm</td><td>any</td></tr>
+    <tr><td>Box → temperature sensor (SHT31)</td><td>4-core cable</td><td>0.2–0.5 mm²</td><td><b>1 m</b> max!</td><td>red, black, green, white</td></tr>
+    <tr><td>Box → soil sensors</td><td>3-core <b>shielded</b> cable (has foil inside)</td><td>0.2–0.5 mm²</td><td>5 m</td><td>red, black, yellow</td></tr>
+    <tr><td>Box → float switch, rain sensor</td><td>2- or 3-core cable</td><td>0.5 mm²</td><td>20 m</td><td>any</td></tr>
+    <tr><td>Relays → valves</td><td>2-core <b>outdoor duplex</b> wire (PVC jacket)</td><td><b>1.0 mm²</b> (18 AWG)</td><td>20 m (use 1.5 mm² if longer)</td><td>red +, black −</td></tr>
+    <tr><td>Relay → pump</td><td>2-core outdoor wire</td><td><b>1.5 mm²</b> (16 AWG)</td><td>3 m (pump near the box)</td><td>red +, black −</td></tr>
+    <tr><td>12 V supply → fuse → relays</td><td>Stranded wire</td><td>1.5 mm²</td><td>short</td><td>red +, black −</td></tr>
+  </table>
+  <div class="grid g3" style="margin-top:12px">
+    <div class="callout"><b>Joining wires inside the box:</b> lever connectors (Wago 221) or screw terminals. Put a <b>ferrule</b> (metal tube) on stranded wire ends.</div>
+    <div class="callout red"><b>Joining wires outdoors:</b> only <b>heat-shrink with glue</b> or gel-filled connectors. Never just electrical tape: rain gets in.</div>
+    <div class="callout green"><b>Label everything:</b> put a sticker with "R2 walkway" on <b>both ends</b> of each cable. Future you will say thanks.</div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>17</span></div>
+</section>
+
+<!-- 18 STEP 6 PLUMBING -->
+<section class="slide">
+  <div class="kicker">Build · step 6 of 8 · Team Water 💧</div>
+  <h2><span class="badge">6</span>Build the water path</h2>
+  <svg viewBox="0 0 1150 440" style="width:100%;height:450px;clear:both">
+    <g font-family="system-ui" font-size="13" id="plumb">
+      <rect x="20" y="60" width="130" height="170" rx="18" fill="#2a78d6" opacity=".9"/><rect x="20" y="130" width="130" height="100" fill="#1c5cab"/>
+      <text x="85" y="95" fill="#fff" text-anchor="middle" font-weight="700">Water tank</text><text x="85" y="113" fill="#dbe8fb" text-anchor="middle">raised 1–2 m</text>
+      <line x1="120" y1="140" x2="120" y2="200" stroke="#fff" stroke-width="3"/><circle cx="120" cy="190" r="10" fill="#fab219"/><text x="85" y="250" text-anchor="middle" fill="#52514e">🟡 float switch</text>
+      <line x1="150" y1="215" x2="250" y2="215" stroke="#52514e" stroke-width="10"/>
+      <circle cx="200" cy="215" r="12" fill="#d03b3b"/><text x="200" y="250" text-anchor="middle">ball valve</text><text x="200" y="265" text-anchor="middle" fill="#898781">(hand shut-off)</text>
+      <rect x="250" y="195" width="60" height="40" rx="6" fill="#e1e0d9" stroke="#898781"/><text x="280" y="220" text-anchor="middle">filter</text>
+      <line x1="310" y1="215" x2="380" y2="215" stroke="#52514e" stroke-width="10"/><text x="345" y="200" text-anchor="middle" fill="#898781">½″ PVC</text>
+      <line x1="380" y1="100" x2="380" y2="360" stroke="#52514e" stroke-width="10"/>
+      <line x1="380" y1="100" x2="450" y2="100" stroke="#52514e" stroke-width="10"/>
+      <rect x="450" y="70" width="110" height="60" rx="10" fill="#555"/><text x="505" y="98" fill="#fff" text-anchor="middle" font-weight="700">PUMP (R1)</text><text x="505" y="116" fill="#ddd" text-anchor="middle">12 V, 100 psi</text>
+      <line x1="560" y1="100" x2="640" y2="100" stroke="#2a78d6" stroke-width="6"/><text x="600" y="88" text-anchor="middle" fill="#898781">3/8″ tube</text>
+      <line x1="640" y1="40" x2="640" y2="160" stroke="#2a78d6" stroke-width="6"/>
+      <rect x="660" y="22" width="80" height="36" rx="6" fill="#222"/><text x="700" y="45" fill="#fff" text-anchor="middle">valve R2</text><line x1="640" y1="40" x2="660" y2="40" stroke="#2a78d6" stroke-width="6"/>
+      <line x1="740" y1="40" x2="1100" y2="40" stroke="#2a78d6" stroke-width="4"/><text x="920" y="25" text-anchor="middle" fill="#2a78d6" font-weight="700">mist line + nozzles → main walkway</text>
+      <rect x="660" y="142" width="80" height="36" rx="6" fill="#222"/><text x="700" y="165" fill="#fff" text-anchor="middle">valve R3</text><line x1="640" y1="160" x2="660" y2="160" stroke="#2a78d6" stroke-width="6"/>
+      <line x1="740" y1="160" x2="1100" y2="160" stroke="#2a78d6" stroke-width="4"/><text x="920" y="145" text-anchor="middle" fill="#2a78d6" font-weight="700">mist line → gathering area</text>
+      <line x1="380" y1="300" x2="640" y2="300" stroke="#52514e" stroke-width="10"/><text x="510" y="285" text-anchor="middle" fill="#898781">by gravity, ½″ PVC</text>
+      <line x1="640" y1="260" x2="640" y2="380" stroke="#52514e" stroke-width="8"/>
+      <rect x="660" y="242" width="80" height="36" rx="6" fill="#222"/><text x="700" y="265" fill="#fff" text-anchor="middle">valve R4</text><line x1="640" y1="260" x2="660" y2="260" stroke="#52514e" stroke-width="8"/>
+      <line x1="740" y1="260" x2="1100" y2="260" stroke="#0ca30c" stroke-width="6"/><text x="920" y="245" text-anchor="middle" fill="#0a7a0a" font-weight="700">16 mm drip hose → Garden A</text>
+      <rect x="660" y="362" width="80" height="36" rx="6" fill="#222"/><text x="700" y="385" fill="#fff" text-anchor="middle">valve R5</text><line x1="640" y1="380" x2="660" y2="380" stroke="#52514e" stroke-width="8"/>
+      <line x1="740" y1="380" x2="1100" y2="380" stroke="#0ca30c" stroke-width="6"/><text x="920" y="365" text-anchor="middle" fill="#0a7a0a" font-weight="700">16 mm drip hose → Garden B</text>
+      <text x="20" y="430" fill="#0b0b0b" font-size="15">Valves have an <tspan font-weight="800">arrow</tspan> printed on them: point it the way the water flows. Wrap <tspan font-weight="800">Teflon tape</tspan> 5× clockwise on every thread.</text>
+    </g>
+  </svg>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>18</span></div>
+</section>
+
+<!-- 19 TUBES -->
+<section class="slide">
+  <div class="kicker">Which pipe / tube do I use?</div>
+  <h2>🚿 The right tube for each part</h2>
+  <table style="margin-top:8px">
+    <tr><th>Part of the system</th><th>Use this</th><th>Size</th><th>How to connect</th></tr>
+    <tr><td>Tank → ball valve → filter → split</td><td>PVC pressure pipe (blue or white)</td><td><b>½″</b> (20 mm)</td><td>PVC cement on smooth joints; Teflon tape on threads</td></tr>
+    <tr><td>Split → pump inlet</td><td>Braided (reinforced) clear hose</td><td>½″ or the pump's size</td><td>barbed fitting + <b>hose clamp</b> (tighten with a screwdriver)</td></tr>
+    <tr><td>Pump → mist valves → nozzles</td><td><b>High-pressure misting tube</b> (nylon/PE)</td><td><b>3/8″</b> (9.5 mm)</td><td><b>push-in "slip-lock" fittings</b>: cut the tube straight, push it in firmly until it clicks</td></tr>
+    <tr><td>Nozzles</td><td>0.3 mm brass mist nozzles</td><td>10/24 thread</td><td>screw into the nozzle tees by hand + ¼ turn; one every 40–60 cm</td></tr>
+    <tr><td>Garden valves → garden beds</td><td>Black LDPE drip hose</td><td><b>16 mm</b></td><td>barbed connectors; fold and clamp the end (or an end cap)</td></tr>
+    <tr><td>Drip hose → each plant</td><td>Micro tube + dripper (2–4 L/hour)</td><td>4 mm</td><td>punch a hole in the 16 mm hose, push in the barb</td></tr>
+  </table>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="callout"><b>Cut straight!</b> Use a PVC cutter for pipes and sharp scissors for the 3/8″ tube. A slanted cut = a leak.</div>
+    <div class="callout blue"><b>Leak test:</b> before mounting up high, run the pump 5 min on the ground and look at every joint. Fix the drips now.</div>
+    <div class="callout green"><b>Count your water:</b> 10 nozzles × 0.08 L/min = 0.8 L/min. Put the real number in the config (<code>flow_lpm</code>) so the "water used" counter is right.</div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>19</span></div>
+</section>
+
+<!-- 20 STEP 7 MOUNT -->
+<section class="slide">
+  <div class="kicker">Build · step 7 of 8 · everyone · adult on the ladder</div>
+  <h2><span class="badge">7</span>Mount everything outdoors</h2>
+  <div class="grid g3" style="clear:both;margin-top:14px">
+    <div class="card"><svg class="pic" data-pic="box"></svg><h3>📦 The control box</h3><ul><li>Electronics go inside the <b>IP65 box</b>, in the <b>shade</b>, under a roof edge</li><li>Every cable enters from the <b>bottom</b> through a <b>cable gland</b> (squeeze nut)</li><li>Make a <b>drip loop</b>: the cable dips down before going up into the box, so rain drips off</li><li>Lock it, or mount it high, so nobody plays with it</li></ul></div>
+    <div class="card"><svg class="pic" data-pic="mist"></svg><h3>💨 The mist line</h3><ul><li>Nozzles <b>2.5–3 m high</b>, along the <b>side</b> of the walkway, not over the middle</li><li>Point them slightly down and across</li><li>Tie the tube with clips or cable ties every 50 cm</li><li>Goal: cool air, dry floor. If the floor gets wet, raise the nozzles or remove some.</li></ul></div>
+    <div class="card"><svg class="pic" data-pic="shield"></svg><h3>🌡 The sensors</h3><ul><li>Temperature sensor: inside a <b>white vented box</b>, 1.5 m high, <b>never in direct sun</b></li><li>Soil sensors: push in up to the line, near the plant roots</li><li>Rain sensor: tilted slightly, facing the sky, not under a roof</li><li>Cables run in <b>flexible conduit</b> along the wall</li></ul></div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>20</span></div>
+</section>
+
+<!-- 21 STEP 8 FIRST RUN -->
+<section class="slide">
+  <div class="kicker">Build · step 8 of 8 · everyone</div>
+  <h2><span class="badge">8</span>First real run 🎉</h2>
+  <div class="grid g2" style="clear:both;margin-top:14px">
+    <div>
+      <h3 style="margin-top:0">Final checklist</h3>
+      <ul class="check">
+        <li>Tank full, ball valve open, filter clean</li>
+        <li>Run each zone with <b>Run 5 min</b>: walkway mist, gathering mist, Garden A, Garden B</li>
+        <li>Fine mist, no big drops, floor stays dry after 5 min</li>
+        <li>Drippers drip at every plant</li>
+        <li>Close the ball valve → the tank level drops → it locks (or lift the float)</li>
+        <li>Set a <b>control PIN</b> in the config so only teachers can press buttons</li>
+        <li>Change the <code>node_token</code> to your own secret word</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Make it start by itself every morning</h3>
+<pre><span class="c"># create the auto-start file</span>
+sudo nano /etc/systemd/system/greenhive.service</pre>
+<pre>[Unit]
+Description=CHS GreenHive
+After=network-online.target
+[Service]
+WorkingDirectory=/opt/greenhive
+ExecStart=/usr/bin/python3 /opt/greenhive/chs-green-hive.py --live
+Restart=always
+[Install]
+WantedBy=multi-user.target</pre>
+<pre>sudo systemctl enable --now greenhive   <span class="c"># start now + on every boot</span></pre>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>21</span></div>
+</section>
+
+<!-- 22 DASHBOARD -->
+<section class="slide">
+  <div class="kicker">Using it</div>
+  <h2>📱 Reading the dashboard</h2>
+  <div class="grid" style="grid-template-columns:1.7fr 1fr;align-items:start;margin-top:8px">
+    <img src="dashboard.png" alt="GreenHive dashboard" style="width:100%;border-radius:10px;border:1px solid var(--line)">
+    <div>
+      <ul style="font-size:15px">
+        <li><b>Heat map</b>: our real campus map. Darker orange = hotter.</li>
+        <li><b>Hottest spot now</b>: heat index + PAGASA level</li>
+        <li><b>Zones</b>: ON/OFF and the <b>reason</b> (e.g. "Misting: Danger, HI 44.6°C")</li>
+        <li><b>Run 5 min / Pause / Disable</b>: manual buttons</li>
+        <li><b>Water tank</b> and <b>water used today</b></li>
+        <li><b>EMERGENCY STOP</b>: everything OFF at once</li>
+        <li><b>Edit layout</b>: drag the sensor dots to where you really installed them, then <b>Save</b></li>
+      </ul>
+      <div class="callout green" style="font-size:14px">Open it at <code>http://&lt;pi-ip&gt;:8080</code> from any phone on the school network.</div>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>22</span></div>
+</section>
+
+<!-- 23 MAINTAIN + FIX -->
+<section class="slide">
+  <div class="kicker">Keep it running</div>
+  <h2>🔧 Maintenance &amp; "it's not working!"</h2>
+  <div class="grid g2" style="grid-template-columns:1fr 1.5fr;align-items:start;margin-top:10px">
+    <div class="card"><h3>📅 Maintenance schedule</h3>
+      <p><b>Every week</b></p><ul><li>Check the dashboard log for warnings</li><li>Flush the mist lines (Run 5 min each)</li><li>Look for leaks and wet floors</li></ul>
+      <p><b>Every month</b></p><ul><li>Clean the filter screen</li><li>Soak the nozzles in vinegar for 1 hour</li><li>Clean the tank; keep it covered</li><li>Wipe the rain sensor plate</li></ul>
+      <p><b>Every year</b></p><ul><li>Replace the rain sensor; check the cables for cracks</li></ul>
+    </div>
+    <table>
+      <tr><th>Problem</th><th>Try this</th></tr>
+      <tr><td>Relay clicks but the valve doesn't open</td><td>Check the 12 V with the multimeter at the valve; check the fuse; is the valve's arrow pointing the right way? Garden valve: is it a "zero pressure" type?</td></tr>
+      <tr><td>Nothing clicks at all</td><td>Is the JD-VCC converter giving 5 V? Are the jumper wires on the right pins?</td></tr>
+      <tr><td>Mist is weak or drips</td><td>Clogged nozzle (vinegar soak) or a dirty filter; check the tube joints for leaks</td></tr>
+      <tr><td>Dashboard says "sensor offline"</td><td><code>sudo i2cdetect -y 0</code>; reseat the SHT31 wires; is the cable longer than 1 m?</td></tr>
+      <tr><td>"Tank low" but the tank is full</td><td>The float switch is upside down or its wire is broken (beep test)</td></tr>
+      <tr><td>Wrong time / mists at night</td><td>Check the DS3231 battery and the time zone (<code>timedatectl</code>)</td></tr>
+      <tr><td>Can't open the dashboard</td><td>Is the Pi on (red LED)? Right IP? <code>sudo systemctl status greenhive</code></td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>23</span></div>
+</section>
+
+<!-- 24 COST + PROVE -->
+<section class="slide">
+  <div class="kicker">Was it worth it?</div>
+  <h2>📊 Prove it works, and what it costs to run</h2>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h3>🔬 Make it a science project</h3>
+      <ul>
+        <li>Keep one temperature sensor at a spot <b>with no mist</b> (the "reference")</li>
+        <li>The dashboard chart compares <b>misted vs. reference</b> all day</li>
+        <li>Collect 2 weeks of data → make graphs → present your results</li>
+        <li>Ask students: "Does the walkway feel cooler?" (a quick survey)</li>
+        <li>All data is saved in <code>chs-green-hive-data.db</code></li>
+      </ul>
+    </div>
+    <div class="card"><h3>💸 Running cost (estimated, hot season)</h3>
+      <table>
+        <tr><td>Per hot school day</td><td class="num"><b>≈ ₱60</b></td></tr>
+        <tr><td>Per week</td><td class="num"><b>≈ ₱330</b></td></tr>
+        <tr><td>Per month</td><td class="num"><b>≈ ₱1,450</b></td></tr>
+      </table>
+      <p style="margin-top:8px">About 87% of it is <b>water</b>, 13% electricity. Use less by:</p>
+      <ul><li>Mulch on the garden (soil stays wet longer)</li><li>Catch <b>rainwater</b> from the roof into the tank = free water</li><li>Longer pauses between mist pulses</li></ul>
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>24</span></div>
+</section>
+
+<!-- 25 GLOSSARY -->
+<section class="slide">
+  <div class="kicker">Words you'll hear</div>
+  <h2>📖 Mini dictionary</h2>
+  <div class="grid g4" style="margin-top:10px">
+    <div class="card"><h3>Pin / GPIO</h3><p>A metal pin on the Orange Pi that the program can turn on/off or read.</p></div>
+    <div class="card"><h3>Relay</h3><p>A switch that a computer can flip. It clicks!</p></div>
+    <div class="card"><h3>I2C</h3><p>4 shared wires that several sensors use to talk to the Pi.</p></div>
+    <div class="card"><h3>Heat index</h3><p>How hot it <i>feels</i>: temperature + humidity together.</p></div>
+    <div class="card"><h3>Volt (V)</h3><p>Electric "pressure". The Pi uses 3.3 V and 5 V, the pump 12 V, the wall 220 V.</p></div>
+    <div class="card"><h3>Amp (A)</h3><p>How much electricity flows. Thick wire = more amps.</p></div>
+    <div class="card"><h3>psi</h3><p>Water pressure. Faucet ≈ 30, our pump ≈ 100.</p></div>
+    <div class="card"><h3>mm² / AWG</h3><p>Wire thickness. Bigger mm² = thicker wire.</p></div>
+    <div class="card"><h3>Fuse</h3><p>A tiny wire that melts on purpose to stop a short circuit.</p></div>
+    <div class="card"><h3>Diode</h3><p>A one-way street for electricity. It protects against zaps.</p></div>
+    <div class="card"><h3>NC valve</h3><p>Normally-closed: stays shut when there's no power.</p></div>
+    <div class="card"><h3>Fail-safe</h3><p>If something breaks, the system goes to the safe state (water OFF).</p></div>
+  </div>
+  <div class="foot"><span>CHS GreenHive build guide</span><span>25</span></div>
+</section>
+
+<!-- 26 END -->
+<section class="slide title">
+  <div class="kicker" style="color:#bfe8cf">You've got this</div>
+  <h1 style="margin-top:40px">Build it. Test it. Cool our school. 🌱💧</h1>
+  <div class="grid g2" style="margin-top:30px;max-width:1080px">
+    <div class="glass" style="font-size:18px;line-height:1.75">
+      <b>The 8 build steps</b><br>
+      1 Set up the Orange Pi · 2 Wire the sensors<br>
+      3 Wire the relays · 4 Table test (no water)<br>
+      5 Connect pump &amp; valves · 6 Build the water path<br>
+      7 Mount outdoors · 8 First real run 🎉
+    </div>
+    <div class="glass" style="font-size:16px;line-height:1.6">
+      <b>Files in the project folder</b><br>
+      <span class="mono" style="background:rgba(255,255,255,.15)">chs-green-hive.py</span>: the brain's program<br>
+      <span class="mono" style="background:rgba(255,255,255,.15)">chs-green-hive-dashboard.html</span>: the website<br>
+      <span class="mono" style="background:rgba(255,255,255,.15)">chs-green-hive-config.json</span>: settings<br>
+      <span class="mono" style="background:rgba(255,255,255,.15)">README.md</span>: the full technical guide
+    </div>
+  </div>
+  <div class="foot"><span>CHS GreenHive · Commonwealth High School</span><span>26</span></div>
+</section>
+
+</div></div>
+
+<div id="bar"></div>
+<div id="help">← → or Space to move · F = full screen · Ctrl+P = save as PDF</div>
+<div id="nav"><span id="count"></span><button id="prev">‹ Prev</button><button id="next">Next ›</button></div>
+
+<script>
+"use strict";
+// ------------------------------------------------------------------ drawings of each part
+const pins = (x, y, n, gap, r, fill) => Array.from({ length: n }, (_, i) => `<circle cx="${x + i * gap}" cy="${y}" r="${r}" fill="${fill}"/>`).join("");
+const PICS = {
+  orangepi: `<rect x="10" y="12" width="140" height="80" rx="6" fill="#1f6f3a"/>${pins(22, 20, 20, 5.6, 1.8, "#e8c45a")}${pins(22, 26, 20, 5.6, 1.8, "#e8c45a")}
+    <rect x="60" y="42" width="30" height="30" rx="2" fill="#222"/><text x="75" y="61" fill="#aaa" font-size="9" text-anchor="middle">H3</text>
+    <rect x="122" y="50" width="30" height="26" fill="#c9c9c9"/><rect x="124" y="30" width="24" height="16" fill="#d9d9d9"/>
+    <circle cx="22" cy="80" r="6" fill="#111"/><rect x="96" y="70" width="18" height="12" fill="#888"/>
+    <text x="80" y="106" font-size="9" text-anchor="middle" fill="#52514e">40 pins · chip · Ethernet · USB · power jack</text>`,
+  relay: `<rect x="8" y="14" width="148" height="72" rx="5" fill="#1f5fbf"/>${[0, 1, 2, 3].map((i) => `<rect x="${16 + i * 34}" y="22" width="28" height="30" rx="2" fill="#3b82f6" stroke="#1e3a8a"/><text x="${30 + i * 34}" y="40" font-size="7" fill="#fff" text-anchor="middle">10A</text><rect x="${16 + i * 34}" y="58" width="28" height="14" fill="#16a34a"/>${pins(21 + i * 34, 65, 3, 9, 2.5, "#9ca3af")}`).join("")}
+    ${pins(14, 80, 10, 5, 1.6, "#e8c45a")}<text x="82" y="104" font-size="9" text-anchor="middle" fill="#52514e">relays (blue) · screw holes (green) · pins</text>`,
+  sht31: `<rect x="50" y="18" width="60" height="50" rx="4" fill="#7c3aed"/><rect x="72" y="32" width="16" height="14" rx="2" fill="#ddd"/>${pins(60, 62, 4, 13, 3, "#e8c45a")}<text x="80" y="88" font-size="9" text-anchor="middle" fill="#52514e">VIN GND SCL SDA</text>`,
+  ads: `<rect x="40" y="18" width="80" height="50" rx="4" fill="#4338ca"/><rect x="68" y="30" width="22" height="16" rx="2" fill="#222"/>${pins(46, 62, 10, 7.5, 2.4, "#e8c45a")}<text x="80" y="88" font-size="9" text-anchor="middle" fill="#52514e">VDD GND SCL SDA … A0 A1 A2 A3</text>`,
+  soil: `<path d="M62,6 h36 v64 l-18,18 l-18,-18z" fill="#111"/><rect x="66" y="20" width="28" height="4" fill="#fff"/><rect x="70" y="10" width="20" height="8" fill="#ddd"/><text x="80" y="58" font-size="8" fill="#ccc" text-anchor="middle">v2.0</text><path d="M30,74 q50,-8 100,0" stroke="#7a5230" stroke-width="5" fill="none"/>`,
+  rain: `<rect x="18" y="20" width="70" height="56" rx="3" fill="#2563eb"/><path d="M24,30 h58 v6 h-58 v6 h58 v6 h-58 v6 h58 v6 h-58" stroke="#e5e7eb" stroke-width="2" fill="none"/><rect x="104" y="34" width="44" height="28" rx="3" fill="#1d4ed8"/><circle cx="118" cy="48" r="5" fill="#2563eb" stroke="#fff"/><path d="M88,48 h16" stroke="#111" stroke-width="2"/><text x="80" y="92" font-size="9" text-anchor="middle" fill="#52514e">rain plate + small board</text>`,
+  float: `<rect x="40" y="10" width="80" height="10" rx="2" fill="#9ca3af"/><rect x="76" y="20" width="8" height="58" fill="#e5e7eb" stroke="#9ca3af"/><rect x="66" y="50" width="28" height="16" rx="6" fill="#fab219"/><path d="M84,10 q20,-10 40,0" stroke="#111" stroke-width="2" fill="none"/><path d="M20,62 h120" stroke="#2a78d6" stroke-width="2" stroke-dasharray="4 3"/><text x="80" y="92" font-size="9" text-anchor="middle" fill="#52514e">the float rides on the water</text>`,
+  rtc: `<rect x="30" y="14" width="100" height="60" rx="4" fill="#1d4ed8"/><circle cx="100" cy="44" r="20" fill="#d1d5db" stroke="#6b7280"/><text x="100" y="48" font-size="8" text-anchor="middle">CR2032</text><rect x="44" y="34" width="22" height="18" rx="2" fill="#222"/>${pins(40, 68, 6, 8, 2.2, "#e8c45a")}`,
+  pump: `<rect x="20" y="30" width="70" height="40" rx="18" fill="#9ca3af"/><rect x="88" y="24" width="40" height="52" rx="8" fill="#111"/><rect x="126" y="32" width="18" height="10" fill="#d1d5db"/><rect x="126" y="58" width="18" height="10" fill="#d1d5db"/><text x="55" y="54" font-size="11" text-anchor="middle" font-weight="700">12V</text><text x="148" y="30" font-size="8" fill="#52514e">out</text><text x="148" y="80" font-size="8" fill="#52514e">in</text><path d="M30,70 q-10,14 -20,14" stroke="#d03b3b" stroke-width="2" fill="none"/>`,
+  valve: `<rect x="34" y="44" width="92" height="28" rx="6" fill="#222"/><rect x="18" y="50" width="18" height="16" fill="#c8a24a"/><rect x="124" y="50" width="18" height="16" fill="#c8a24a"/><rect x="58" y="14" width="44" height="32" rx="4" fill="#333"/><path d="M70,14 q-6,-10 -16,-10 M90,14 q6,-10 16,-10" stroke="#d03b3b" stroke-width="2" fill="none"/><text x="80" y="34" font-size="8" fill="#fff" text-anchor="middle">12V NC</text><path d="M62,58 h30 l-6,-4 m6,4 l-6,4" stroke="#bbb" stroke-width="2" fill="none"/><text x="80" y="90" font-size="9" text-anchor="middle" fill="#52514e">arrow = water direction</text>`,
+  nozzle: `<rect x="30" y="54" width="100" height="10" rx="5" fill="#111"/><rect x="70" y="36" width="20" height="20" rx="3" fill="#c8a24a"/><rect x="74" y="26" width="12" height="12" fill="#d4b056"/>${Array.from({ length: 40 }, (_, i) => `<circle cx="${80 + Math.sin(i * 7.3) * (i % 9) * 3.2}" cy="${22 - (i % 9) * 2}" r="1.2" fill="#93c5fd"/>`).join("")}<text x="80" y="84" font-size="9" text-anchor="middle" fill="#52514e">0.3 mm nozzle on 3/8″ tube</text>`,
+  drip: `<path d="M10,40 h140" stroke="#111" stroke-width="8"/>${[30, 70, 110].map((x) => `<path d="M${x},44 v18" stroke="#333" stroke-width="2"/><rect x="${x - 5}" y="60" width="10" height="8" rx="2" fill="#16a34a"/><path d="M${x},70 q-3,6 0,8 q3,-2 0,-8" fill="#2a78d6"/>`).join("")}<path d="M10,86 q70,-10 140,0" stroke="#7a5230" stroke-width="4" fill="none"/>`,
+  filter: `<rect x="62" y="18" width="36" height="56" rx="6" fill="#dbeafe" stroke="#60a5fa" stroke-width="2"/><path d="M68,26 v40 M74,26 v40 M80,26 v40 M86,26 v40 M92,26 v40" stroke="#93c5fd"/><rect x="30" y="40" width="34" height="12" fill="#9ca3af"/><rect x="96" y="40" width="34" height="12" fill="#9ca3af"/><text x="80" y="90" font-size="9" text-anchor="middle" fill="#52514e">mesh screen inside</text>`,
+  box: `<rect x="40" y="10" width="80" height="66" rx="6" fill="#d1d5db" stroke="#6b7280" stroke-width="2"/><rect x="48" y="18" width="64" height="50" rx="3" fill="#e5e7eb"/>${pins(56, 82, 4, 16, 4, "#374151")}<text x="80" y="46" font-size="10" text-anchor="middle" fill="#52514e">IP65</text>`,
+  mist: `<path d="M10,20 h140" stroke="#111" stroke-width="5"/>${[30, 70, 110].map((x) => `<rect x="${x - 4}" y="20" width="8" height="8" fill="#c8a24a"/>` + Array.from({ length: 14 }, (_, i) => `<circle cx="${x + Math.sin(i * 3.1) * (i % 7) * 4}" cy="${34 + (i % 7) * 5}" r="1.4" fill="#93c5fd"/>`).join("")).join("")}<path d="M10,96 h140" stroke="#c3c2b7" stroke-width="3"/><text x="80" y="90" font-size="9" text-anchor="middle" fill="#52514e">2.5–3 m high · floor stays dry</text>`,
+  shield: `${[0, 1, 2, 3, 4].map((i) => `<ellipse cx="80" cy="${18 + i * 11}" rx="${34 - i}" ry="6" fill="#fff" stroke="#9ca3af"/>`).join("")}<rect x="78" y="70" width="4" height="22" fill="#6b7280"/><text x="122" y="44" font-size="9" fill="#52514e">sensor</text><text x="122" y="54" font-size="9" fill="#52514e">inside</text>`,
+};
+document.querySelectorAll("svg[data-pic]").forEach((s) => { s.setAttribute("viewBox", "0 0 160 110"); s.innerHTML = PICS[s.dataset.pic] || ""; });
+
+// nozzles + drippers on the plumbing drawing
+(function () {
+  let h = "";
+  for (const y of [40, 160]) for (let x = 770; x <= 1090; x += 40)
+    h += `<circle cx="${x}" cy="${y + 8}" r="4" fill="#c8a24a"/><circle cx="${x - 4}" cy="${y + 18}" r="1.5" fill="#93c5fd"/><circle cx="${x + 3}" cy="${y + 22}" r="1.5" fill="#93c5fd"/><circle cx="${x}" cy="${y + 27}" r="1.5" fill="#93c5fd"/>`;
+  for (const y of [260, 380]) for (let x = 780; x <= 1090; x += 45)
+    h += `<rect x="${x - 4}" y="${y + 4}" width="8" height="7" fill="#16a34a"/><path d="M${x},${y + 13} q-3,6 0,8 q3,-2 0,-8" fill="#2a78d6"/>`;
+  document.getElementById("plumb").insertAdjacentHTML("beforeend", h);
+})();
+
+// header pins + wires on the relay slide
+(function () {
+  const P = { 1: "3.3V", 3: "SDA", 5: "SCL", 6: "GND", 7: "→IN1", 11: "→IN2", 13: "→IN3", 15: "→IN4", 16: "→IN5", 31: "float", 33: "rain" };
+  const pinY = (n) => 70 + Math.floor((n - 1) / 2) * 18.4;
+  let h = "";
+  for (let n = 1; n <= 40; n++) {
+    const x = n % 2 ? 95 : 125, y = pinY(n), used = P[n];
+    h += `<circle cx="${x}" cy="${y}" r="5" fill="${used ? "#fab219" : "#cfd6cf"}" stroke="#0b3d20"/>`;
+    if (used) h += n % 2 ? `<text x="${x - 10}" y="${y + 4}" fill="#fff" text-anchor="end">${n} · ${P[n]}</text>` : `<text x="${x + 10}" y="${y + 4}" fill="#fff">${n} · ${P[n]}</text>`;
+  }
+  document.getElementById("pins").innerHTML = h;
+  const ry = { VCC: 71, GND: 93, 7: 118, 11: 140, 13: 162, 15: 184, 16: 206 };
+  const line = (n, ty, col) => `<path d="M${n % 2 ? 95 : 125},${pinY(n)} C300,${pinY(n)} 330,${ty} 440,${ty}" stroke="${col}" stroke-width="2.4" fill="none"/>`;
+  let w = line(1, ry.VCC, "#d03b3b") + line(6, ry.GND, "#111");
+  for (const n of [7, 11, 13, 15, 16]) w += line(n, ry[n], "#e6b800");
+  w += line(3, 402, "#16a34a") + line(5, 424, "#9ca3af") + line(1, 362, "#d03b3b") + line(6, 384, "#111");
+  document.getElementById("wires").innerHTML = w;
+})();
+
+// relay rows on the 12 V slide
+(function () {
+  const items = [["R1", "PUMP", "1.5 mm²"], ["R2", "valve: walkway", "1.0 mm²"], ["R3", "valve: gathering", "1.0 mm²"], ["R4", "valve: garden A", "1.0 mm²"], ["R5", "valve: garden B", "1.0 mm²"]];
+  let h = "";
+  items.forEach(([r, name, wire], i) => {
+    const y = 50 + i * 52;
+    h += `<line x1="380" y1="${y}" x2="430" y2="${y}" stroke="#d03b3b" stroke-width="3"/>
+      <rect x="430" y="${y - 18}" width="120" height="36" rx="6" fill="#1f5fbf"/><text x="490" y="${y + 5}" fill="#fff" text-anchor="middle" font-weight="700">${r} COM → NO</text>
+      <line x1="550" y1="${y}" x2="760" y2="${y}" stroke="#d03b3b" stroke-width="3"/><text x="655" y="${y - 6}" text-anchor="middle" fill="#52514e" font-size="12">${wire} outdoor wire</text>
+      <rect x="760" y="${y - 18}" width="160" height="36" rx="6" fill="${i ? "#222" : "#555"}"/><text x="840" y="${y + 5}" fill="#fff" text-anchor="middle">${name}</text>
+      <line x1="920" y1="${y}" x2="1060" y2="${y}" stroke="#111" stroke-width="3"/>
+      <rect x="975" y="${y - 22}" width="40" height="10" rx="2" fill="#111"/><rect x="980" y="${y - 22}" width="5" height="10" fill="#ddd"/><text x="995" y="${y - 26}" text-anchor="middle" font-size="10" fill="#52514e">diode</text>`;
+  });
+  document.getElementById("relayrows").innerHTML = h;
+})();
+
+// ------------------------------------------------------------------ shopping lists
+const shop = (q) => "https://shopee.ph/search?keyword=" + encodeURIComponent(q);
+const LISTS = {
+  shopA: ["A · Brain & sensors", [
+    ["Orange Pi One (H3)", "", 1, 0, "have it"],
+    ["microSD card 32 GB (A1)", "sandisk 32gb microsd a1", 1, 300],
+    ["5 V 3 A adapter, 4.0×1.7 mm plug", "5v 3a adapter 4.0x1.7", 1, 250],
+    ["Heatsink", "orange pi heatsink", 1, 50],
+    ["SHT31 temp/humidity board", "SHT31 module", 1, 250],
+    ["ADS1115 board", "ADS1115 module", 1, 200],
+    ["Capacitive soil sensor v2.0", "capacitive soil moisture sensor v2.0", 2, 75],
+    ["Rain sensor board", "rain sensor module FC-37", 1, 60],
+    ["Float switch", "water level float switch", 1, 100],
+    ["DS3231 clock board", "DS3231 RTC module", 1, 120],
+  ]],
+  shopB: ["B · Switches & power", [
+    ["8-channel 5 V relay board (optocoupler)", "8 channel relay module 5v optocoupler", 1, 350],
+    ["12 V 10 A power supply", "12v 10a power supply", 1, 600],
+    ["12 V → 5 V converter (LM2596)", "LM2596 buck converter", 1, 100],
+    ["Inline fuse holder + 10 A fuses", "inline blade fuse holder", 1, 100],
+    ["1N4007 diodes (pack)", "1N4007 diode", 1, 30],
+    ["10 kΩ resistors (pack)", "10k resistor", 1, 20],
+    ["Small router (only if no network port)", "tp-link router", 1, 900, "maybe"],
+  ]],
+  shopC: ["C · Water parts", [
+    ["12 V diaphragm pump, 80–100 psi", "12v diaphragm pump 100psi misting", 1, 1500],
+    ["12 V NC solenoid valve ½″ (for mist)", "12v solenoid valve 1/2 normally closed", 2, 300],
+    ["12 V zero-pressure valve ½″ (for garden)", "zero pressure solenoid valve 12v", 2, 450],
+    ["Misting kit: 3/8″ tube + 10 nozzles + tees", "misting system kit 3/8 nozzle", 1, 1200],
+    ["Drip kit: 16 mm hose + drippers", "drip irrigation kit 16mm", 1, 700],
+    ["Filter / Y-strainer ½″", "y strainer 1/2", 1, 150],
+    ["½″ PVC pipe, fittings, 2 ball valves", "1/2 pvc ball valve", 1, 600],
+    ["Teflon tape, PVC cement, hose clamps", "hose clamp", 1, 200],
+  ]],
+  shopD: ["D · Wires & box", [
+    ["IP65 box ~250×200 mm + cable glands", "ip65 junction box 250x200", 1, 450],
+    ["Outdoor duplex wire 1.0 mm² (30 m)", "duplex wire 1.0mm", 1, 900],
+    ["Duplex wire 1.5 mm² (5 m)", "1.5mm duplex wire", 1, 250],
+    ["Shielded sensor cable 4-core (10 m)", "4 core shielded cable", 1, 400],
+    ["Jumper wires female-female (40)", "dupont jumper wire female female", 1, 80],
+    ["Wago 221 connectors / terminal blocks", "wago 221", 1, 300],
+    ["Heat-shrink with glue + ferrules", "heat shrink with glue", 1, 200],
+    ["Flexible conduit 16 mm (10 m) + cable ties", "flexible conduit 16mm", 1, 350],
+  ]],
+};
+const peso = (n) => "₱" + n.toLocaleString("en-PH");
+const totals = {};
+for (const [id, [title, rows]] of Object.entries(LISTS)) {
+  let sum = 0;
+  const body = rows.map(([name, q, qty, each, note]) => {
+    const t = qty * each; if (note !== "maybe") sum += t;
+    const label = q ? `<a href="${shop(q)}" target="_blank" rel="noopener">${name}</a>` : name;
+    return `<tr><td>${label}${note ? ` <span class="tag ${note === "maybe" ? "warn" : ""}">${note}</span>` : ""}</td><td class="num">${qty}</td><td class="num">${t ? peso(t) : "—"}</td></tr>`;
+  }).join("");
+  totals[id] = sum;
+  document.getElementById(id).innerHTML = `<tr><th>${title}</th><th class="num">Qty</th><th class="num">₱</th></tr>${body}<tr class="total"><td>Subtotal</td><td></td><td class="num">${peso(sum)}</td></tr>`;
+}
+const grand = Object.values(totals).reduce((a, b) => a + b, 0);
+document.getElementById("shopTotal").innerHTML = `<tr><th>Total for everything</th><th class="num">₱</th></tr>` +
+  Object.entries(LISTS).map(([id, [t]]) => `<tr><td>${t}</td><td class="num">${peso(totals[id])}</td></tr>`).join("") +
+  `<tr class="total"><td>TOTAL</td><td class="num">${peso(grand)}</td></tr>` +
+  `<tr><td colspan="2" style="color:var(--muted);font-size:12px;border:0">+ ₱900 if you need a router · + tools · prices are estimates</td></tr>`;
+const TOOLS = [
+  ["Digital multimeter", "check voltage, find broken wires (beep test)", 400, "digital multimeter"],
+  ["Wire stripper + crimper", "strip wire ends, squeeze ferrules", 350, "wire stripper crimper"],
+  ["Screwdriver set", "screw terminals, box screws", 250, "precision screwdriver set"],
+  ["PVC pipe cutter", "clean, straight pipe cuts", 250, "pvc pipe cutter"],
+  ["Safety glasses", "cutting, drilling, pump tests", 100, "safety glasses"],
+  ["Hot glue gun", "keep jumper wires in place", 150, "hot glue gun"],
+  ["Heat gun or lighter", "shrink the heat-shrink", 0, ""],
+  ["Drill + bits", "holes in the box and walls", 0, ""],
+  ["Ladder (with a spotter)", "mounting the nozzles", 0, ""],
+];
+document.getElementById("tools").innerHTML = `<tr><th>Tool</th><th>Used for</th><th class="num">₱</th></tr>` +
+  TOOLS.map(([n, u, p, q]) => `<tr><td>${q ? `<a href="${shop(q)}" target="_blank" rel="noopener">${n}</a>` : n}</td><td style="color:var(--ink-2)">${u}</td><td class="num">${p ? peso(p) : "borrow"}</td></tr>`).join("") +
+  `<tr class="total"><td>If you buy all of them</td><td></td><td class="num">${peso(TOOLS.reduce((a, t) => a + t[2], 0))}</td></tr>`;
+
+// misting explainer: fine-spray cones under each nozzle
+(function () {
+  const cone = (cx, top, len, spread, n) => {
+    let d = `<rect x="${cx - 6}" y="${top - 12}" width="12" height="12" rx="2" fill="#c8a24a"/>`;
+    for (let i = 0; i < n; i++) {
+      const t = ((i * 37) % 100) / 100, a = (((i * 53) % 100) / 100 - 0.5) * spread;
+      d += `<circle cx="${(cx + a * t * len).toFixed(1)}" cy="${(top + t * len).toFixed(1)}" r="${(1 + (i % 3) * 0.6).toFixed(1)}" fill="#60a5fa" opacity="${(0.85 - t * 0.7).toFixed(2)}"/>`;
+    }
+    return d;
+  };
+  document.getElementById("spray").innerHTML = [90, 230, 370, 510].map((x) => cone(x, 68, 190, 1.0, 90)).join("") +
+    `<text x="112" y="72" font-size="11" fill="#8a6d1f">← nozzle (0.3 mm hole)</text>`;
+})();
+
+// ------------------------------------------------------------------ navigation
+const slides = [...document.querySelectorAll(".slide")];
+slides.forEach((sl, i) => { const n = sl.querySelector(".foot span:last-child"); if (n) n.textContent = i + 1; });
+let cur = Math.min(slides.length - 1, Math.max(0, (parseInt(location.hash.slice(1)) || 1) - 1));
+function show(i) {
+  cur = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, k) => s.classList.toggle("active", k === cur));
+  document.getElementById("count").textContent = `${cur + 1} / ${slides.length}`;
+  document.getElementById("bar").style.width = ((cur + 1) / slides.length * 100) + "%";
+  history.replaceState(null, "", "#" + (cur + 1));
+}
+function fit() { document.getElementById("deck").style.transform = `scale(${Math.min(innerWidth / 1280, innerHeight / 720) * 0.98})`; }
+addEventListener("resize", fit);
+addEventListener("keydown", (e) => {
+  if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+  if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+  if (e.key === "Home") show(0);
+  if (e.key === "End") show(slides.length - 1);
+  if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+});
+document.getElementById("prev").onclick = () => show(cur - 1);
+document.getElementById("next").onclick = () => show(cur + 1);
+fit(); show(cur);
+</script>
+</body>
+</html>
